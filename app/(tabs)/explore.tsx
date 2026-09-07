@@ -1,112 +1,150 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'expo-router';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebaseConfig'; // Henter databasen din
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function ExploreScreen() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [salons, setSalons] = useState([]); // Her lagrer vi dataene fra Firebase
+  const [loading, setLoading] = useState(true); // For å vise en "laster..." sirkel
 
-export default function TabTwoScreen() {
+  const categories = ['Frisør', 'Massasje', 'Negler', 'Hudpleie', 'Voksing'];
+
+  // Henter data fra Firebase når siden lastes
+  useEffect(() => {
+    const fetchSalons = async () => {
+      console.log("Prøver å hente salonger fra Firebase...");
+      try {
+        // Henter alt fra 'salons'-samlingen i databasen
+        const querySnapshot = await getDocs(collection(db, 'salons'));
+        const salonsList = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setSalons(salonsList);
+      } catch (error) {
+        console.error("Feil ved henting av salonger: ", error);
+      } finally {
+        setLoading(false); // Slutter å laste når vi har data (eller feil)
+      }
+    };
+
+    fetchSalons();
+  }, []);
+
+  // Filtrerer listen basert på søkeordet (akkurat som før)
+  const filteredSalons = salons.filter(salon => {
+    const lowerCaseSearch = searchQuery.toLowerCase();
+    return (
+      salon.name?.toLowerCase().includes(lowerCaseSearch) ||
+      salon.category?.toLowerCase().includes(lowerCaseSearch) ||
+      salon.address?.toLowerCase().includes(lowerCaseSearch)
+    );
+  });
+
+  // Hvis appen laster, vis en liten spinner
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Laster salonger...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <Text style={styles.greeting}>Hei, Aryan! 👋</Text>
+        <Text style={styles.subGreeting}>Klar for litt velvære?</Text>
+        
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={20} color="gray" />
+          <TextInput 
+            style={styles.searchInput} 
+            placeholder="Søk etter frisør, massasje, sted..." 
+            placeholderTextColor="gray"
+            value={searchQuery}
+            onChangeText={(text) => setSearchQuery(text)} 
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color="gray" />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Hva ser du etter?</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+          {categories.map((category, index) => (
+            <Pressable key={index} style={styles.categoryBadge} onPress={() => setSearchQuery(category)}>
+              <Text style={styles.categoryText}>{category}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Anbefalt nær deg</Text>
+        
+        {filteredSalons.length === 0 ? (
+          <Text style={styles.noResultsText}>Fant dessverre ingen treff for "{searchQuery}"</Text>
+        ) : (
+          filteredSalons.map((salon) => (
+            <Pressable 
+              key={salon.id} 
+              style={styles.businessCard}
+              onPress={() => router.push(`/business/${salon.id}`)}
+            >
+              <View style={styles.imagePlaceholder}>
+                <Ionicons name="image-outline" size={40} color="#ccc" />
+              </View>
+              
+              <View style={styles.businessInfo}>
+                <Text style={styles.businessName}>{salon.name}</Text>
+                <Text style={styles.businessType}>{salon.category} • {salon.address}</Text>
+                
+                <View style={styles.ratingContainer}>
+                  <Ionicons name="star" size={16} color="#FFD700" />
+                  <Text style={styles.ratingText}>{salon.rating || '5.0'}</Text>
+                  <Text style={styles.reviewText}>({salon.reviews || 0} anmeldelser)</Text>
+                </View>
+              </View>
+            </Pressable>
+          ))
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
+// ... (Behold styles-objektet ditt akkurat som det var før, men legg til loading styles)
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 15, fontSize: 16, color: 'gray' },
+  header: { padding: 20, paddingTop: 60, backgroundColor: '#fff' },
+  greeting: { fontSize: 24, fontWeight: 'bold' },
+  subGreeting: { fontSize: 16, color: 'gray', marginTop: 5 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 12, padding: 12, marginTop: 20 },
+  searchInput: { marginLeft: 10, fontSize: 16, flex: 1 },
+  section: { marginTop: 10, paddingBottom: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 15 },
+  categoryScroll: { paddingLeft: 20 },
+  categoryBadge: { backgroundColor: '#007AFF', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, marginRight: 10 },
+  categoryText: { color: 'white', fontWeight: '600' },
+  businessCard: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 20, backgroundColor: '#fff' },
+  imagePlaceholder: { width: 90, height: 90, backgroundColor: '#f0f0f0', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  businessInfo: { marginLeft: 15, flex: 1, justifyContent: 'center' },
+  businessName: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  businessType: { color: 'gray', fontSize: 14, marginBottom: 8 },
+  ratingContainer: { flexDirection: 'row', alignItems: 'center' },
+  ratingText: { fontWeight: 'bold', marginLeft: 4 },
+  reviewText: { color: 'gray', marginLeft: 4 },
+  noResultsText: { marginHorizontal: 20, color: 'gray', fontStyle: 'italic', fontSize: 16 }
 });

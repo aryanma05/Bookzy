@@ -1,24 +1,20 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { BookingProvider } from './context/BookingContext';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    // Nå pakker vi INN HELE APPEN i ryggsekken
+    <BookingProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* Dette skjuler topp-menyen på innloggingssiden */}
+        <Stack.Screen name="index" />
+        
+        {/* Dette skjuler den doble topp-menyen for fanene */}
+        <Stack.Screen name="(tabs)" />
+        
+        {/* Dette forteller at business-siden eksisterer */}
+        <Stack.Screen name="business/[id]" />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    </BookingProvider>
   );
 }
