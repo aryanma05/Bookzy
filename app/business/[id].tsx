@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Alert, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../firebaseConfig'; // Samme database-import som explore.tsx
 import { useBookings } from '../context/BookingContext'; // Henter minnebanken vår
 
 export default function BusinessScreen() {
@@ -14,8 +16,31 @@ export default function BusinessScreen() {
   // State: Husker hvilken tid brukeren har klikket på akkurat nå
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
-  const availableTimes = ['10:00', '11:30', '13:00', '14:30', '16:00'];
-  const businessName = "Oslo Frisør & Styling"; // Hardkodet for nå
+  // Henter riktig salong fra Firestore basert på id fra URL-en.
+  // Erstatter de gamle hardkodede verdiene (businessName, availableTimes, etc).
+  const [salon, setSalon] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSalon = async () => {
+      if (!id) return;
+      try {
+        const docRef = doc(db, 'salons', id as string);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setSalon({ id: docSnap.id, ...docSnap.data() });
+        } else {
+          console.warn('Fant ingen salong med id:', id);
+        }
+      } catch (error) {
+        console.error('Feil ved henting av salong: ', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSalon();
+  }, [id]);
 
   // Funksjonen som kjører når man trykker på den store blå knappen
   const handleBooking = () => {
@@ -24,13 +49,15 @@ export default function BusinessScreen() {
       return;
     }
 
-    // Lager et bestillingsobjekt
+    if (!salon) return;
+
+    // Lager et bestillingsobjekt basert på ekte salongdata
     const newBooking = {
       id: Math.random().toString(), // Genererer en tilfeldig ID
-      businessName: businessName,
+      businessName: salon.name,
       time: selectedTime,
-      service: "Herreklipp",
-      price: "450 kr"
+      service: salon.services?.[0]?.name || "Behandling",
+      price: salon.services?.[0]?.price || "—"
     };
 
     // Legger bestillingen i "ryggsekken"
@@ -38,7 +65,7 @@ export default function BusinessScreen() {
     
     Alert.alert(
       "Suksess!", 
-      `Du har bestilt time hos ${businessName} kl ${selectedTime}.`,
+      `Du har bestilt time hos ${salon.name} kl ${selectedTime}.`,
       [
         { 
           text: "OK", 
@@ -49,36 +76,71 @@ export default function BusinessScreen() {
     );
   };
 
+  // Viser en laste-spinner mens vi henter salongen fra Firestore
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Laster salong...</Text>
+      </View>
+    );
+  }
+
+  // Viser en feilmelding hvis salongen ikke finnes
+  if (!salon) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Fant ikke denne salongen.</Text>
+        <Pressable style={styles.backButtonFallback} onPress={() => router.back()}>
+          <Text style={styles.bookButtonText}>Gå tilbake</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const availableTimes = salon.availableTimes || [];
+
   return (
     <View style={styles.container}>
       <View style={styles.coverImage}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="black" />
         </Pressable>
-        <Ionicons name="image-outline" size={60} color="#ccc" />
+        
+        {/* Viser ekte bilde hvis salon.imageUrl finnes, ellers grå plassholder */}
+        {salon.imageUrl ? (
+          <Image 
+            source={{ uri: salon.imageUrl }} 
+            style={styles.coverImagePhoto}
+            resizeMode="cover"
+          />
+        ) : (
+          <Ionicons name="image-outline" size={60} color="#ccc" />
+        )}
       </View>
 
       <ScrollView style={styles.content}>
-        <Text style={styles.title}>{businessName}</Text>
-        <Text style={styles.subtitle}>📍 Karl Johans gate 12, Oslo</Text>
+        <Text style={styles.title}>{salon.name}</Text>
+        <Text style={styles.subtitle}>📍 {salon.address}</Text>
         
         <View style={styles.ratingBox}>
           <Ionicons name="star" size={18} color="#FFD700" />
-          <Text style={styles.ratingText}>4.9 (128 anmeldelser)</Text>
+          <Text style={styles.ratingText}>{salon.rating || '5.0'} ({salon.reviews || 0} anmeldelser)</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Tjenester</Text>
-        <View style={styles.serviceItem}>
-          <View>
-            <Text style={styles.serviceName}>Herreklipp</Text>
-            <Text style={styles.serviceDuration}>45 min</Text>
+        {(salon.services || []).map((service: any, index: number) => (
+          <View key={index} style={styles.serviceItem}>
+            <View>
+              <Text style={styles.serviceName}>{service.name}</Text>
+              <Text style={styles.serviceDuration}>{service.duration}</Text>
+            </View>
+            <Text style={styles.servicePrice}>{service.price}</Text>
           </View>
-          <Text style={styles.servicePrice}>450 kr</Text>
-        </View>
+        ))}
 
         <Text style={styles.sectionTitle}>Ledige timer i dag</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeScroll}>
-          {availableTimes.map((time, index) => {
+          {availableTimes.map((time: string, index: number) => {
             // Sjekker om denne knappen er den som er valgt
             const isSelected = selectedTime === time;
             
@@ -113,7 +175,11 @@ export default function BusinessScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  coverImage: { height: 200, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  loadingText: { fontSize: 16, color: 'gray', marginBottom: 20 },
+  backButtonFallback: { backgroundColor: '#007AFF', padding: 15, borderRadius: 12 },
+  coverImage: { height: 200, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  coverImagePhoto: { width: '100%', height: '100%', position: 'absolute' },
   backButton: { position: 'absolute', top: 50, left: 20, backgroundColor: 'white', padding: 8, borderRadius: 20, zIndex: 1 },
   content: { padding: 20 },
   title: { fontSize: 28, fontWeight: 'bold' },

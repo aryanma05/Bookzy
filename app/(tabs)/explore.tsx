@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Pressable, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
@@ -101,9 +101,18 @@ export default function ExploreScreen() {
               style={styles.businessCard}
               onPress={() => router.push(`/business/${salon.id}`)}
             >
-              <View style={styles.imagePlaceholder}>
-                <Ionicons name="image-outline" size={40} color="#ccc" />
-              </View>
+              {/* Viser ekte bilde hvis salon.imageUrl finnes, ellers grå plassholder */}
+              {salon.imageUrl ? (
+                <Image 
+                  source={{ uri: salon.imageUrl }} 
+                  style={styles.salonImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.imagePlaceholder}>
+                  <Ionicons name="image-outline" size={40} color="#ccc" />
+                </View>
+              )}
               
               <View style={styles.businessInfo}>
                 <Text style={styles.businessName}>{salon.name}</Text>
@@ -123,7 +132,6 @@ export default function ExploreScreen() {
   );
 }
 
-// ... (Behold styles-objektet ditt akkurat som det var før, men legg til loading styles)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -140,6 +148,7 @@ const styles = StyleSheet.create({
   categoryText: { color: 'white', fontWeight: '600' },
   businessCard: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 20, backgroundColor: '#fff' },
   imagePlaceholder: { width: 90, height: 90, backgroundColor: '#f0f0f0', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  salonImage: { width: 90, height: 90, borderRadius: 12, backgroundColor: '#f0f0f0' },
   businessInfo: { marginLeft: 15, flex: 1, justifyContent: 'center' },
   businessName: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   businessType: { color: 'gray', fontSize: 14, marginBottom: 8 },
