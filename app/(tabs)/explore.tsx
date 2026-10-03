@@ -3,22 +3,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../firebaseConfig'; // Henter databasen din
+import { db } from '../../firebaseConfig';
 
 export default function ExploreScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [salons, setSalons] = useState([]); // Her lagrer vi dataene fra Firebase
-  const [loading, setLoading] = useState(true); // For å vise en "laster..." sirkel
+  const [salons, setSalons] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const categories = ['Frisør', 'Massasje', 'Negler', 'Hudpleie', 'Voksing'];
 
-  // Henter data fra Firebase når siden lastes
   useEffect(() => {
     const fetchSalons = async () => {
-      console.log("Prøver å hente salonger fra Firebase...");
+      console.log("Prøver a hente salonger fra Firebase...");
       try {
-        // Henter alt fra 'salons'-samlingen i databasen
         const querySnapshot = await getDocs(collection(db, 'salons'));
         const salonsList = querySnapshot.docs.map(doc => ({
           id: doc.id,
@@ -28,14 +26,13 @@ export default function ExploreScreen() {
       } catch (error) {
         console.error("Feil ved henting av salonger: ", error);
       } finally {
-        setLoading(false); // Slutter å laste når vi har data (eller feil)
+        setLoading(false);
       }
     };
 
     fetchSalons();
   }, []);
 
-  // Filtrerer listen basert på søkeordet (akkurat som før)
   const filteredSalons = salons.filter(salon => {
     const lowerCaseSearch = searchQuery.toLowerCase();
     return (
@@ -45,7 +42,6 @@ export default function ExploreScreen() {
     );
   });
 
-  // Hvis appen laster, vis en liten spinner
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -58,14 +54,12 @@ export default function ExploreScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <Text style={styles.greeting}>Hei, Aryan! 👋</Text>
-        <Text style={styles.subGreeting}>Klar for litt velvære?</Text>
-        
+        {/* Sokefelt */}
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="gray" />
           <TextInput 
             style={styles.searchInput} 
-            placeholder="Søk etter frisør, massasje, sted..." 
+            placeholder="Sek etter frisr, massasje, sted..." 
             placeholderTextColor="gray"
             value={searchQuery}
             onChangeText={(text) => setSearchQuery(text)} 
@@ -78,19 +72,34 @@ export default function ExploreScreen() {
         </View>
       </View>
 
+      {/* Kategori-badges */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Hva ser du etter?</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
           {categories.map((category, index) => (
-            <Pressable key={index} style={styles.categoryBadge} onPress={() => setSearchQuery(category)}>
+            <Pressable 
+              key={index} 
+              style={({ pressed }) => [
+                styles.categoryBadge,
+                pressed && styles.categoryBadgePressed,
+                searchQuery === category && styles.categoryBadgeActive,
+              ]} 
+              onPress={() => setSearchQuery(category)}
+            >
               <Text style={styles.categoryText}>{category}</Text>
             </Pressable>
           ))}
         </ScrollView>
       </View>
 
+      {/* Salong-liste */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Anbefalt nær deg</Text>
+        <View style={styles.resultsHeader}>
+          <Text style={styles.sectionTitle}>Anbefalt nær deg</Text>
+          <Text style={styles.resultsCount}>
+            {filteredSalons.length} {filteredSalons.length === 1 ? 'salong' : 'salonger'}
+          </Text>
+        </View>
         
         {filteredSalons.length === 0 ? (
           <Text style={styles.noResultsText}>Fant dessverre ingen treff for "{searchQuery}"</Text>
@@ -101,7 +110,6 @@ export default function ExploreScreen() {
               style={styles.businessCard}
               onPress={() => router.push(`/business/${salon.id}`)}
             >
-              {/* Viser ekte bilde hvis salon.imageUrl finnes, ellers grå plassholder */}
               {salon.imageUrl ? (
                 <Image 
                   source={{ uri: salon.imageUrl }} 
@@ -136,19 +144,68 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 15, fontSize: 16, color: 'gray' },
-  header: { padding: 20, paddingTop: 60, backgroundColor: '#fff' },
-  greeting: { fontSize: 24, fontWeight: 'bold' },
-  subGreeting: { fontSize: 16, color: 'gray', marginTop: 5 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 12, padding: 12, marginTop: 20 },
+  
+  // Header
+  header: { padding: 20, backgroundColor: '#fff', paddingTop: 50 },
+  
+  // Sokefelt
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 12, padding: 12 },
   searchInput: { marginLeft: 10, fontSize: 16, flex: 1 },
+  
+  // Seksjoner
   section: { marginTop: 10, paddingBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 20, marginBottom: 15 },
+  
+  // Kategori-badges
   categoryScroll: { paddingLeft: 20 },
-  categoryBadge: { backgroundColor: '#007AFF', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, marginRight: 10 },
-  categoryText: { color: 'white', fontWeight: '600' },
-  businessCard: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 20, backgroundColor: '#fff' },
-  imagePlaceholder: { width: 90, height: 90, backgroundColor: '#f0f0f0', borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  salonImage: { width: 90, height: 90, borderRadius: 12, backgroundColor: '#f0f0f0' },
+  categoryBadge: { 
+    backgroundColor: '#f0f0f0', 
+    paddingHorizontal: 18, 
+    paddingVertical: 10, 
+    borderRadius: 20, 
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  categoryBadgePressed: { opacity: 0.7, transform: [{ scale: 0.95 }] },
+  categoryBadgeActive: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
+  categoryText: { color: '#333', fontWeight: '600', fontSize: 14 },
+  
+  // Resultat-header
+  resultsHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginLeft: 20, 
+    marginRight: 20, 
+    marginBottom: 15 
+  },
+  resultsCount: { fontSize: 14, color: '#666', fontWeight: '500' },
+  
+  // Salong-kort
+  businessCard: { 
+    flexDirection: 'row', 
+    marginHorizontal: 20, 
+    marginBottom: 20, 
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  imagePlaceholder: { 
+    width: 100, 
+    height: 100, 
+    backgroundColor: '#f0f0f0', 
+    borderRadius: 16, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  salonImage: { width: 100, height: 100, borderRadius: 16, backgroundColor: '#f0f0f0' },
   businessInfo: { marginLeft: 15, flex: 1, justifyContent: 'center' },
   businessName: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   businessType: { color: 'gray', fontSize: 14, marginBottom: 8 },

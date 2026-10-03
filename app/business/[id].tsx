@@ -3,21 +3,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebaseConfig'; // Samme database-import som explore.tsx
-import { useBookings } from '../context/BookingContext'; // Henter minnebanken vår
+import { db } from '../../firebaseConfig';
+import { useBookings } from '../context/BookingContext';
 
 export default function BusinessScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  
-  // Henter funksjonen for å legge til bestillinger fra Context
   const { addBooking } = useBookings();
 
-  // State: Husker hvilken tid brukeren har klikket på akkurat nå
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-
-  // Henter riktig salong fra Firestore basert på id fra URL-en.
-  // Erstatter de gamle hardkodede verdiene (businessName, availableTimes, etc).
+  const [selectedService, setSelectedService] = useState<any>(null);
   const [salon, setSalon] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,41 +37,41 @@ export default function BusinessScreen() {
     fetchSalon();
   }, [id]);
 
-  // Funksjonen som kjører når man trykker på den store blå knappen
   const handleBooking = () => {
     if (!selectedTime) {
-      Alert.alert("Obs!", "Vennligst velg et tidspunkt først.");
+      Alert.alert("Obs!", "Vennligst velg et tidspunkt forst.");
+      return;
+    }
+
+    if (!selectedService) {
+      Alert.alert("Obs!", "Vennligst velg en tjeneste forst.");
       return;
     }
 
     if (!salon) return;
 
-    // Lager et bestillingsobjekt basert på ekte salongdata
     const newBooking = {
-      id: Math.random().toString(), // Genererer en tilfeldig ID
+      id: Math.random().toString(),
       businessName: salon.name,
       time: selectedTime,
-      service: salon.services?.[0]?.name || "Behandling",
-      price: salon.services?.[0]?.price || "—"
+      service: selectedService.name,
+      price: selectedService.price
     };
 
-    // Legger bestillingen i "ryggsekken"
     addBooking(newBooking);
     
     Alert.alert(
       "Suksess!", 
-      `Du har bestilt time hos ${salon.name} kl ${selectedTime}.`,
+      `Du har bestilt ${selectedService.name} hos ${salon.name} kl ${selectedTime}.`,
       [
         { 
           text: "OK", 
-          // Sender brukeren rett til oversikten over bestillinger!
           onPress: () => router.navigate('/bookings') 
         }
       ]
     );
   };
 
-  // Viser en laste-spinner mens vi henter salongen fra Firestore
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -85,13 +80,12 @@ export default function BusinessScreen() {
     );
   }
 
-  // Viser en feilmelding hvis salongen ikke finnes
   if (!salon) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Fant ikke denne salongen.</Text>
         <Pressable style={styles.backButtonFallback} onPress={() => router.back()}>
-          <Text style={styles.bookButtonText}>Gå tilbake</Text>
+          <Text style={styles.bookButtonText}>Ga tilbake</Text>
         </Pressable>
       </View>
     );
@@ -106,7 +100,6 @@ export default function BusinessScreen() {
           <Ionicons name="arrow-back" size={24} color="black" />
         </Pressable>
         
-        {/* Viser ekte bilde hvis salon.imageUrl finnes, ellers grå plassholder */}
         {salon.imageUrl ? (
           <Image 
             source={{ uri: salon.imageUrl }} 
@@ -127,27 +120,48 @@ export default function BusinessScreen() {
           <Text style={styles.ratingText}>{salon.rating || '5.0'} ({salon.reviews || 0} anmeldelser)</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Tjenester</Text>
-        {(salon.services || []).map((service: any, index: number) => (
-          <View key={index} style={styles.serviceItem}>
-            <View>
-              <Text style={styles.serviceName}>{service.name}</Text>
-              <Text style={styles.serviceDuration}>{service.duration}</Text>
-            </View>
-            <Text style={styles.servicePrice}>{service.price}</Text>
-          </View>
-        ))}
+        <Text style={styles.sectionTitle}>Velg tjeneste</Text>
+        {(salon.services || []).map((service: any, index: number) => {
+          const isSelected = selectedService === service;
+          return (
+            <Pressable
+              key={index}
+              style={[
+                styles.serviceItem, 
+                isSelected && styles.serviceItemSelected,
+              ]}
+              onPress={() => setSelectedService(service)}
+            >
+              <View style={styles.serviceLeft}>
+                <View style={styles.serviceIconContainer}>
+                  <Ionicons 
+                    name={isSelected ? 'checkmark' : 'ellipse-outline'} 
+                    size={24} 
+                    color={isSelected ? '#007AFF' : '#ccc'} 
+                  />
+                </View>
+                <View>
+                  <Text style={[styles.serviceName, isSelected && styles.serviceNameSelected]}>
+                    {service.name}
+                  </Text>
+                  <Text style={styles.serviceDuration}>{service.duration}</Text>
+                </View>
+              </View>
+              <Text style={[styles.servicePrice, isSelected && styles.servicePriceSelected]}>
+                {service.price}
+              </Text>
+            </Pressable>
+          );
+        })}
 
         <Text style={styles.sectionTitle}>Ledige timer i dag</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeScroll}>
           {availableTimes.map((time: string, index: number) => {
-            // Sjekker om denne knappen er den som er valgt
             const isSelected = selectedTime === time;
             
             return (
               <Pressable 
                 key={index} 
-                // Gir knappen blå bakgrunn hvis den er valgt, hvit hvis ikke
                 style={[styles.timeBadge, isSelected && styles.timeBadgeSelected]} 
                 onPress={() => setSelectedTime(time)}
               >
@@ -162,7 +176,6 @@ export default function BusinessScreen() {
 
       <View style={styles.footer}>
         <Pressable 
-          // Gjør knappen litt grå/gjennomsiktig hvis ingen tid er valgt
           style={[styles.bookButton, !selectedTime && { opacity: 0.5 }]} 
           onPress={handleBooking}
         >
@@ -187,17 +200,55 @@ const styles = StyleSheet.create({
   ratingBox: { flexDirection: 'row', alignItems: 'center', marginBottom: 25 },
   ratingText: { fontWeight: 'bold', marginLeft: 5, fontSize: 16 },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 15, marginTop: 10 },
-  serviceItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  serviceName: { fontSize: 16, fontWeight: '600' },
-  serviceDuration: { color: 'gray', marginTop: 4 },
-  servicePrice: { fontSize: 16, fontWeight: 'bold' },
-  timeScroll: { marginBottom: 40 },
   
-  // Styling for tids-knappene
+  // Tjenester - tydeligere design
+  serviceItem: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingVertical: 16, 
+    paddingHorizontal: 16,
+    marginHorizontal: 12,
+    marginVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
+  serviceItemSelected: {
+    backgroundColor: '#f0f8ff',
+    borderColor: '#007AFF',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  serviceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  serviceIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  serviceName: { fontSize: 16, fontWeight: '600', color: '#333' },
+  serviceNameSelected: { fontWeight: 'bold', color: '#007AFF' },
+  serviceDuration: { color: 'gray', marginTop: 4, fontSize: 14 },
+  servicePrice: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  servicePriceSelected: { color: '#007AFF' },
+  
+  timeScroll: { marginBottom: 40, paddingLeft: 12 },
   timeBadge: { borderWidth: 1, borderColor: '#007AFF', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, marginRight: 10 },
-  timeBadgeSelected: { backgroundColor: '#007AFF' }, // Blå bakgrunn når valgt
+  timeBadgeSelected: { backgroundColor: '#007AFF' },
   timeText: { color: '#007AFF', fontWeight: 'bold', fontSize: 16 },
-  timeTextSelected: { color: 'white' }, // Hvit tekst når valgt
+  timeTextSelected: { color: 'white' },
   
   footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#eee', backgroundColor: 'white' },
   bookButton: { backgroundColor: '#007AFF', padding: 18, borderRadius: 12, alignItems: 'center' },
