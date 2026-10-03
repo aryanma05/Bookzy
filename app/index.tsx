@@ -1,19 +1,48 @@
-import { Text, StyleSheet, Pressable, ImageBackground, View } from 'react-native';
+import { Text, StyleSheet, Pressable, View, Dimensions, StatusBar, Animated } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-// Forhindrer at splash skjules med en gang
+const { width, height } = Dimensions.get('window');
+
+// Onboarding data – 3 skjermer
+const onboardingSlides = [
+  {
+    title: 'Velkommen til Timeflyt',
+    description: 'Oppdag de beste frisørene, massasjesalongene og skjønnhetspleiene i ditt område.',
+    icon: 'sparkles-outline',
+    gradient: ['#667eea', '#764ba2'],
+  },
+  {
+    title: 'Book på sekunder',
+    description: 'Velg tidspunkt som passer deg og bestill direkte i appen. Ingen venting på telefon.',
+    icon: 'calendar-outline',
+    gradient: ['#f093fb', '#f5576c'],
+  },
+  {
+    title: 'Din tid, din måte',
+    description: 'Administrer alle dine bookinger på ett sted. Avbestill eller endre når du vil.',
+    icon: 'time-outline',
+    gradient: ['#4facfe', '#00f2fe'],
+  },
+];
+
 SplashScreen.preventAutoHideAsync();
 
-export default function LoginScreen() {
-  const [appIsReady, setAppIsReady] = useState(false);
+export default function OnboardingScreen() {
   const router = useRouter();
+  const [appIsReady, setAppIsReady] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // Animasjonsverdier
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
 
   useEffect(() => {
     async function prepare() {
       try {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1200));
       } catch (e) {
         console.warn(e);
       } finally {
@@ -24,88 +53,233 @@ export default function LoginScreen() {
     prepare();
   }, []);
 
+  // Kjør animasjon når slide endres
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, damping: 15, useNativeDriver: true }),
+    ]).start();
+  }, [currentSlide]);
+
   if (!appIsReady) {
     return null;
   }
 
+  const handleNext = () => {
+    if (currentSlide < onboardingSlides.length - 1) {
+      // Først animasjon ut, så bytt slide
+      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+        setCurrentSlide(currentSlide + 1);
+        slideAnim.setValue(50);
+        Animated.parallel([
+          Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.spring(slideAnim, { toValue: 0, damping: 15, useNativeDriver: true }),
+        ]).start();
+      });
+    } else {
+      router.push('/(tabs)/explore');
+    }
+  };
+
+  const handleSkip = () => {
+    router.push('/(tabs)/explore');
+  };
+
+  const currentSlideData = onboardingSlides[currentSlide];
+
   return (
-    <ImageBackground 
-      // Siden du valgte Alternativ 2 og har bildet inni app-mappen:
-      source={require('./assets/images/background.jpg')} 
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay}>
-        <Text style={styles.title}>Timeflyt</Text>
-        
-        <View style={styles.buttonContainer}>
-          <Pressable style={styles.buttonApple} onPress={() => router.push('/(tabs)/explore')}>
-            <Text style={styles.buttonText}>Fortsett med Apple</Text>
-          </Pressable>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
 
-          <Pressable style={styles.buttonGoogle} onPress={() => router.push('/(tabs)/explore')}>
-            <Text style={styles.buttonTextDark}>Fortsett med Google</Text>
-          </Pressable>
-
-          <Pressable style={styles.buttonLogin} onPress={() => router.push('/(tabs)/explore')}>
-            <Text style={styles.buttonText}>Logg inn</Text>
-          </Pressable>
-        </View>
+      {/* Bakgrunnsgradient */}
+      <View
+        style={[
+          styles.gradientBackground,
+          { backgroundColor: currentSlideData.gradient[0] },
+        ]}
+      >
+        <View
+          style={[
+            styles.gradientOverlay,
+            { backgroundColor: currentSlideData.gradient[1] },
+          ]}
+        />
       </View>
-    </ImageBackground>
+
+      {/* Skip-knapp */}
+      {currentSlide < onboardingSlides.length - 1 && (
+        <Pressable onPress={handleSkip} style={styles.skipButton}>
+          <Text style={styles.skipText}>Hopp over</Text>
+        </Pressable>
+      )}
+
+      {/* Hovedinnhold */}
+      <View style={styles.contentContainer}>
+        {/* Ikon/illustrasjon */}
+        <Animated.View
+          style={[
+            styles.iconContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <Ionicons name={currentSlideData.icon as any} size={120} color="white" />
+        </Animated.View>
+
+        {/* Tittel og beskrivelse */}
+        <Animated.View
+          style={[
+            styles.textContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <Text style={styles.title}>{currentSlideData.title}</Text>
+          <Text style={styles.description}>{currentSlideData.description}</Text>
+        </Animated.View>
+
+        {/* Sideindikatorer (dots) */}
+        {currentSlide < onboardingSlides.length - 1 && (
+          <View style={styles.pagination}>
+            {onboardingSlides.map((_, index) => (
+              <View
+                key={index}
+                style={[styles.dot, index === currentSlide && styles.activeDot]}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Knapp */}
+        <Animated.View
+          style={[
+            styles.buttonContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <Pressable style={styles.primaryButton} onPress={handleNext}>
+            <Text style={styles.primaryButtonText}>
+              {currentSlide === onboardingSlides.length - 1 ? 'Kom i gang' : 'Neste'}
+            </Text>
+            <Ionicons
+              name={currentSlide === onboardingSlides.length - 1 ? 'checkmark' : 'arrow-forward'}
+              size={20}
+              color="white"
+              style={styles.buttonIcon}
+            />
+          </Pressable>
+        </Animated.View>
+      </View>
+    </View>
   );
 }
 
-// HER er styles-objektet som manglet eller ikke ble funnet!
 const styles = StyleSheet.create({
-  background: {
+  container: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    backgroundColor: '#000',
   },
-  overlay: {
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  gradientOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)', // Gjør bildet litt mørkere
+    opacity: 0.7,
+  },
+  skipButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    zIndex: 10,
+  },
+  skipText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    opacity: 0.8,
+  },
+  contentContainer: {
+    flex: 1,
     justifyContent: 'space-between',
-    padding: 30,
-    paddingTop: 100,
-    paddingBottom: 50,
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 30,
+  },
+  iconContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  textContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 40,
   },
   title: {
-    fontSize: 42,
+    fontSize: 32,
     fontWeight: 'bold',
     color: 'white',
     textAlign: 'center',
+    marginBottom: 15,
+  },
+  description: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  pagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 40,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+  },
+  activeDot: {
+    width: 24,
+    backgroundColor: 'white',
   },
   buttonContainer: {
-    gap: 15, 
+    width: '100%',
+    paddingHorizontal: 20,
   },
-  buttonApple: {
-    backgroundColor: 'black',
-    padding: 18,
-    borderRadius: 30,
-    alignItems: 'center',
-  },
-  buttonGoogle: {
+  primaryButton: {
     backgroundColor: 'white',
-    padding: 18,
-    borderRadius: 30,
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  buttonLogin: {
-    backgroundColor: '#007AFF', 
-    padding: 18,
+    justifyContent: 'center',
+    paddingVertical: 18,
     borderRadius: 30,
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+  primaryButtonText: {
+    color: '#333',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
-  buttonTextDark: {
-    color: 'black',
-    fontSize: 16,
-    fontWeight: '600',
-  }
+  buttonIcon: {
+    marginLeft: 8,
+  },
 });
