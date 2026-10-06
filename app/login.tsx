@@ -1,34 +1,29 @@
 import { useState } from 'react';
-import {
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LogoMark } from '@/components/logo';
+import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { Text } from '@/components/ui/text';
+import { TextField } from '@/components/ui/text-field';
+import { colors, radius } from '@/constants/theme';
 import { authErrorMessage, useAuth } from '@/context/AuthContext';
+import { haptics } from '@/lib/haptics';
 
 type Mode = 'signIn' | 'signUp' | 'reset';
 
-const TITLES: Record<Mode, string> = {
-  signIn: 'Logg inn',
-  signUp: 'Opprett konto',
-  reset: 'Glemt passord',
-};
-
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { signIn, signUp, resetPassword } = useAuth();
 
   const [mode, setMode] = useState<Mode>('signIn');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,137 +62,152 @@ export default function LoginScreen() {
     try {
       if (mode === 'reset') {
         await resetPassword(email);
-        setInfo('Vi har sendt deg en e-post med en lenke for å lage nytt passord.');
+        setInfo('Sjekk e-posten din – vi har sendt en lenke for å lage nytt passord.');
       } else {
         if (mode === 'signIn') {
           await signIn(email, password);
         } else {
-          await signUp(name, email, password);
+          await signUp({ name, email, password, phone });
         }
+        haptics.success();
         close();
       }
     } catch (e) {
+      haptics.warning();
       setError(authErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
   };
 
+  const submitLabel = mode === 'signIn' ? 'Logg inn' : mode === 'signUp' ? 'Opprett konto' : 'Send lenke';
+
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Pressable style={styles.closeButton} onPress={close} accessibilityLabel="Lukk">
-            <Ionicons name="close" size={28} color="#333" />
-          </Pressable>
-
-          <Text style={styles.title}>{TITLES[mode]}</Text>
-          <Text style={styles.subtitle}>
-            {mode === 'reset'
-              ? 'Skriv inn e-postadressen din, så sender vi deg en lenke.'
-              : 'Du trenger en konto for å bestille og se timene dine.'}
-          </Text>
-
-          {mode === 'signUp' && (
-            <TextInput
-              style={styles.input}
-              placeholder="Navn"
-              placeholderTextColor="gray"
-              value={name}
-              onChangeText={setName}
-              autoComplete="name"
-              textContentType="name"
-            />
-          )}
-
-          <TextInput
-            style={styles.input}
-            placeholder="E-post"
-            placeholderTextColor="gray"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            autoComplete="email"
-            textContentType="emailAddress"
-          />
+    <View style={[styles.screen, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+      <View style={styles.topBar}>
+        <IconButton icon="close" variant="soft" size={38} onPress={close} accessibilityLabel="Lukk" />
+      </View>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View entering={FadeInDown.duration(400)} style={styles.brand}>
+            <LogoMark height={52} />
+            <Text variant="title" align="center">
+              {mode === 'reset' ? 'Glemt passordet?' : mode === 'signUp' ? 'Lag din konto' : 'Velkommen tilbake'}
+            </Text>
+            <Text variant="body" color={colors.textSecondary} align="center">
+              {mode === 'reset'
+                ? 'Skriv inn e-postadressen din, så sender vi deg en lenke.'
+                : 'Book timer, lagre favoritter og få påminnelser.'}
+            </Text>
+          </Animated.View>
 
           {mode !== 'reset' && (
-            <TextInput
-              style={styles.input}
-              placeholder="Passord"
-              placeholderTextColor="gray"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
-              textContentType={mode === 'signUp' ? 'newPassword' : 'password'}
-              onSubmitEditing={handleSubmit}
+            <SegmentedControl
+              options={[
+                { value: 'signIn', label: 'Logg inn' },
+                { value: 'signUp', label: 'Ny bruker' },
+              ]}
+              value={mode}
+              onChange={switchMode}
             />
           )}
 
-          {error && <Text style={styles.error}>{error}</Text>}
-          {info && <Text style={styles.info}>{info}</Text>}
-
-          <Pressable
-            style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text style={styles.submitText}>
-                {mode === 'reset' ? 'Send lenke' : TITLES[mode]}
-              </Text>
+          <View style={styles.fields}>
+            {mode === 'signUp' && (
+              <Animated.View entering={FadeIn.duration(250)}>
+                <TextField
+                  label="Navn"
+                  icon="person-outline"
+                  placeholder="Fornavn og etternavn"
+                  value={name}
+                  onChangeText={setName}
+                  autoComplete="name"
+                  textContentType="name"
+                />
+              </Animated.View>
             )}
-          </Pressable>
+            <TextField
+              label="E-post"
+              icon="mail-outline"
+              placeholder="navn@eksempel.no"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoComplete="email"
+              textContentType="emailAddress"
+            />
+            {mode === 'signUp' && (
+              <Animated.View entering={FadeIn.duration(250)}>
+                <TextField
+                  label="Telefon"
+                  icon="call-outline"
+                  placeholder="Mobilnummer"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  hint="Salongene bruker nummeret hvis noe endrer seg."
+                />
+              </Animated.View>
+            )}
+            {mode !== 'reset' && (
+              <TextField
+                label="Passord"
+                icon="lock-closed-outline"
+                placeholder={mode === 'signUp' ? 'Minst 6 tegn' : 'Passord'}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
+                textContentType={mode === 'signUp' ? 'newPassword' : 'password'}
+                onSubmitEditing={handleSubmit}
+              />
+            )}
+          </View>
 
-          {mode === 'signIn' && (
-            <Pressable onPress={() => switchMode('reset')}>
-              <Text style={styles.link}>Glemt passordet?</Text>
-            </Pressable>
+          {error && (
+            <Animated.View entering={FadeIn} style={[styles.message, styles.errorBox]}>
+              <Text variant="caption" color={colors.danger}>{error}</Text>
+            </Animated.View>
+          )}
+          {info && (
+            <Animated.View entering={FadeIn} style={[styles.message, styles.infoBox]}>
+              <Text variant="caption" color={colors.success}>{info}</Text>
+            </Animated.View>
           )}
 
-          <Pressable onPress={() => switchMode(mode === 'signIn' ? 'signUp' : 'signIn')}>
-            <Text style={styles.link}>
-              {mode === 'signIn' ? 'Ny her? Opprett konto' : 'Har du konto? Logg inn'}
-            </Text>
-          </Pressable>
+          <Button title={submitLabel} loading={submitting} onPress={handleSubmit} />
+
+          {mode === 'signIn' && (
+            <Pressable onPress={() => switchMode('reset')} hitSlop={8} style={styles.link}>
+              <Text variant="label" color={colors.primary} align="center">Glemt passordet?</Text>
+            </Pressable>
+          )}
+          {mode === 'reset' && (
+            <Pressable onPress={() => switchMode('signIn')} hitSlop={8} style={styles.link}>
+              <Text variant="label" color={colors.primary} align="center">Tilbake til innlogging</Text>
+            </Pressable>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 24 },
-  closeButton: { alignSelf: 'flex-end', padding: 4, marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
-  subtitle: { fontSize: 16, color: 'gray', marginBottom: 30, lineHeight: 22 },
-  input: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  error: { color: '#FF3B30', fontSize: 15, marginBottom: 12 },
-  info: { color: '#2E7D32', fontSize: 15, marginBottom: 12 },
-  submitButton: {
-    backgroundColor: '#007AFF',
-    padding: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  submitButtonDisabled: { opacity: 0.6 },
-  submitText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  link: { color: '#007AFF', fontSize: 16, textAlign: 'center', paddingVertical: 10 },
+  screen: { flex: 1, backgroundColor: colors.surface },
+  flex: { flex: 1 },
+  topBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 16 },
+  content: { paddingHorizontal: 24, gap: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
+  brand: { alignItems: 'center', gap: 8, marginBottom: 4 },
+  fields: { gap: 14 },
+  message: { padding: 12, borderRadius: radius.md },
+  errorBox: { backgroundColor: colors.dangerSoft },
+  infoBox: { backgroundColor: colors.successSoft },
+  link: { paddingVertical: 4 },
 });
