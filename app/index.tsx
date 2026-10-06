@@ -1,10 +1,9 @@
-import { Text, StyleSheet, Pressable, View, Dimensions, StatusBar, Animated } from 'react-native';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { Text, StyleSheet, Pressable, View, StatusBar, Animated } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
-const { width, height } = Dimensions.get('window');
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useOnboarding } from '@/context/OnboardingContext';
 
 // Onboarding data – 3 skjermer
 const onboardingSlides = [
@@ -22,67 +21,53 @@ const onboardingSlides = [
   },
   {
     title: 'Din tid, din måte',
-    description: 'Administrer alle dine bookinger på ett sted. Avbestill eller endre når du vil.',
+    description: 'Se alle timene dine på ett sted, og avbestill enkelt om planene endrer seg.',
     icon: 'time-outline',
     gradient: ['#4facfe', '#00f2fe'],
   },
 ];
 
-SplashScreen.preventAutoHideAsync();
+function animateIn(fadeAnim: Animated.Value, slideAnim: Animated.Value) {
+  slideAnim.setValue(50);
+  Animated.parallel([
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+    Animated.spring(slideAnim, { toValue: 0, damping: 15, useNativeDriver: true }),
+  ]).start();
+}
 
-export default function OnboardingScreen() {
-  const router = useRouter();
-  const [appIsReady, setAppIsReady] = useState(false);
+export default function IndexScreen() {
+  const { hasSeenOnboarding, completeOnboarding } = useOnboarding();
+
+  // Onboarding vises bare første gang appen åpnes
+  if (hasSeenOnboarding) {
+    return <Redirect href="/explore" />;
+  }
+
+  return <Onboarding onDone={completeOnboarding} />;
+}
+
+function Onboarding({ onDone }: { onDone: () => void }) {
+  const insets = useSafeAreaInsets();
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Animasjonsverdier
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  // Animasjonsverdier (useState i stedet for useRef, så de ikke leses fra en ref under render)
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(50));
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1200));
-      } catch (e) {
-        console.warn(e);
-      } finally {
-        setAppIsReady(true);
-        await SplashScreen.hideAsync();
-      }
-    }
-    prepare();
-  }, []);
-
-  // Kjør animasjon når slide endres
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.spring(slideAnim, { toValue: 0, damping: 15, useNativeDriver: true }),
-    ]).start();
-  }, [currentSlide]);
-
-  if (!appIsReady) {
-    return null;
-  }
+    animateIn(fadeAnim, slideAnim);
+  }, [fadeAnim, slideAnim]);
 
   const handleNext = () => {
     if (currentSlide < onboardingSlides.length - 1) {
-      // Først animasjon ut, så bytt slide
+      // Først animasjon ut, så bytt slide og animer inn igjen
       Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
         setCurrentSlide(currentSlide + 1);
-        slideAnim.setValue(50);
-        Animated.parallel([
-          Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-          Animated.spring(slideAnim, { toValue: 0, damping: 15, useNativeDriver: true }),
-        ]).start();
+        animateIn(fadeAnim, slideAnim);
       });
     } else {
-      router.push('/(tabs)/explore');
+      onDone();
     }
-  };
-
-  const handleSkip = () => {
-    router.push('/(tabs)/explore');
   };
 
   const currentSlideData = onboardingSlides[currentSlide];
@@ -108,13 +93,18 @@ export default function OnboardingScreen() {
 
       {/* Skip-knapp */}
       {currentSlide < onboardingSlides.length - 1 && (
-        <Pressable onPress={handleSkip} style={styles.skipButton}>
+        <Pressable onPress={onDone} style={[styles.skipButton, { top: insets.top + 12 }]}>
           <Text style={styles.skipText}>Hopp over</Text>
         </Pressable>
       )}
 
       {/* Hovedinnhold */}
-      <View style={styles.contentContainer}>
+      <View
+        style={[
+          styles.contentContainer,
+          { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 },
+        ]}
+      >
         {/* Ikon/illustrasjon */}
         <Animated.View
           style={[
@@ -199,7 +189,6 @@ const styles = StyleSheet.create({
   },
   skipButton: {
     position: 'absolute',
-    top: 60,
     right: 20,
     paddingVertical: 10,
     paddingHorizontal: 15,
@@ -215,7 +204,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 60,
     paddingHorizontal: 30,
   },
   iconContainer: {
