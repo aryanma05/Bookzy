@@ -1,11 +1,10 @@
-// Fyller Firestore med testsalonger.
+// Fyller Firestore med testsalonger og eksempelanmeldelser.
 //   npm run seed           → den ekte databasen (krever serviceAccountKey.json i prosjektroten,
 //                            hentes fra Firebase Console → Prosjektinnstillinger → Tjenestekontoer)
-//   npm run seed:emulator  → lokal emulator (npm run emulators må kjøre), inkludert testkontoen under
-const { initializeApp } = require('firebase-admin/app');
-const { cert } = require('firebase-admin/app');
+//   npm run seed:emulator  → lokal emulator (npm run emulators må kjøre), inkludert en testkonto med timer
+const { initializeApp, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 
 const useEmulator = process.argv.includes('--emulator');
 
@@ -22,6 +21,90 @@ if (useEmulator) {
 
 const db = getFirestore();
 
+const photo = (id) => `https://images.unsplash.com/photo-${id}?w=1000&q=75&auto=format&fit=crop`;
+
+const PHOTOS = {
+  Frisør: [
+    '1633681926022-84c23e8cb2d6', '1580618672591-eb180b1a973f', '1600948836101-f9ffda59d250',
+    '1634449571010-02389ed0f9b0', '1521590832167-7bcbfaa6381f', '1781450090585-1a511b7066d9',
+    '1629397685944-7073f5589754', '1695527081782-33e110235ade', '1562322140-8baeececf3df',
+  ],
+  Barber: [
+    '1585747860715-2ba37e788b70', '1599351431202-1e0f0137899a', '1759134248487-e8baaf31e33e',
+    '1503951914875-452162b0f3f1', '1621605815971-fbc98d665033', '1657105052497-f996284ffff8',
+  ],
+  Negler: [
+    '1632345031435-8727f6897d53', '1619607146034-5a05296c8f9a', '1746607242420-12fc2604775d',
+    '1758225490983-0fae7961e425', '1696342003838-4a8f9f36588c', '1779636198585-658170ee0283',
+  ],
+  Massasje: [
+    '1600334089648-b0d9d3028eb2', '1544161515-4ab6ce6db874', '1639162906614-0603b0ae95fd',
+    '1600334129128-685c5582fd35', '1787651343620-8d5303006ecb', '1519823551278-64ac92734fb1',
+  ],
+  Hudpleie: [
+    '1570172619644-dfd03ed5d881', '1552693673-1bf958298935', '1760862652442-e8ff7ebdd2f8',
+    '1616394584738-fc6e612e71b9', '1779117691346-5de09d89a73f', '1761718210089-ba3bb5ccb54f',
+  ],
+  Voksing: [
+    '1787651343599-92563927b750', '1757689373248-a6cd07328ba5', '1767288533191-cc2c72bad9c9',
+    '1531299244174-d247dd4e5a66', '1695527081827-fdbc4e77be9b', '1787496994323-59ac5cff09f9',
+  ],
+};
+
+const STAFF = {
+  Frisør: [
+    ['Maria Hansen', 'Senior frisør'], ['Jonas Berg', 'Frisør'], ['Lea Andersen', 'Fargespesialist'],
+    ['Thea Nilsen', 'Frisør'], ['Sebastian Holm', 'Frisør'], ['Julie Bakke', 'Senior frisør'],
+  ],
+  Barber: [['Ali Rahimi', 'Barber'], ['Marcus Olsen', 'Master barber'], ['Daniel Kristiansen', 'Barber']],
+  Negler: [['Linh Nguyen', 'Negledesigner'], ['Ida Moe', 'Negletekniker'], ['Vanessa Lopez', 'Negledesigner']],
+  Massasje: [['Erik Lund', 'Massør'], ['Hanna Vik', 'Idrettsmassør'], ['Kasper Dahl', 'Massør']],
+  Hudpleie: [['Camilla Strand', 'Hudterapeut'], ['Amira Haddad', 'Hudterapeut'], ['Silje Eide', 'Kosmetolog']],
+  Voksing: [['Sandra Lie', 'Voksspesialist'], ['Mina Johansen', 'Hudterapeut']],
+};
+
+const SERVICES = {
+  Frisør: [
+    ['Klipp', 'Dameklipp', 60, 650, 'Vask, klipp og føn.'],
+    ['Klipp', 'Herreklipp', 45, 450, 'Klipp med saks og maskin, inkludert vask.'],
+    ['Klipp', 'Barneklipp', 30, 300, 'For barn under 12 år.'],
+    ['Farge', 'Farging', 90, 1200, 'Hel farge med vask og føn.'],
+    ['Farge', 'Striper og balayage', 120, 1600, 'Prisen kan variere etter hårlengde.'],
+    ['Styling', 'Føn og styling', 30, 400],
+  ],
+  Barber: [
+    ['Klipp', 'Herreklipp', 30, 400],
+    ['Klipp', 'Skin fade', 45, 500, 'Fade helt ned mot huden, finish med saks.'],
+    ['Klipp', 'Klipp og skjegg', 60, 650],
+    ['Skjegg', 'Skjeggtrim', 20, 250],
+    ['Skjegg', 'Barbering med varmt håndkle', 30, 350, 'Klassisk barbering med kniv og varmt håndkle.'],
+  ],
+  Negler: [
+    ['Manikyr', 'Manikyr', 45, 400],
+    ['Manikyr', 'Gelénegler', 60, 550, 'Holder i 2–3 uker.'],
+    ['Manikyr', 'Neglforlengelse', 90, 750],
+    ['Pedikyr', 'Pedikyr', 60, 550],
+  ],
+  Massasje: [
+    ['Massasje', 'Klassisk massasje 30 min', 30, 500],
+    ['Massasje', 'Klassisk massasje 60 min', 60, 800],
+    ['Massasje', 'Dyp vevsmassasje', 60, 900, 'Fast trykk for stive muskler og knuter.'],
+    ['Massasje', 'Hot stone-massasje', 75, 1000],
+  ],
+  Hudpleie: [
+    ['Ansikt', 'Ansiktsbehandling', 60, 900, 'Rens, peeling, maske og massasje.'],
+    ['Ansikt', 'Dybderens', 75, 1100],
+    ['Ansikt', 'Anti-age-behandling', 90, 1400],
+    ['Øyne og bryn', 'Vippe- og brynsfarge', 30, 350],
+  ],
+  Voksing: [
+    ['Kropp', 'Voksing av legger', 30, 350],
+    ['Kropp', 'Voksing av hele ben', 45, 500],
+    ['Kropp', 'Helkroppsvoksing', 90, 1200],
+    ['Ansikt', 'Forming av bryn', 15, 200],
+  ],
+};
+
 const weekdays = (open, close) => ({
   mon: { open, close },
   tue: { open, close },
@@ -30,11 +113,91 @@ const weekdays = (open, close) => ({
   fri: { open, close },
 });
 
-// Åpningstider per ukedag (null = stengt). Ledige tider regnes ut fra disse i appen.
 const OPENING_HOURS = [
   { ...weekdays('09:00', '18:00'), sat: { open: '10:00', close: '16:00' }, sun: null },
   { ...weekdays('10:00', '20:00'), sat: { open: '10:00', close: '17:00' }, sun: null },
   { ...weekdays('09:00', '17:00'), mon: null, sat: { open: '09:00', close: '17:00' }, sun: { open: '12:00', close: '16:00' } },
+];
+
+// [navn, kategori, adresse, område, lat, lng, snitt, antall anmeldelser, avbestillingsfrist (t), tjenester, beskrivelse]
+const SALONS = [
+  ['Oslo Frisør & Styling', 'Frisør', 'Karl Johans gate 12, Oslo', 'Sentrum', 59.9127, 10.7440, 4.9, 128, 24, [0, 1, 3, 5],
+    'Midt på Karl Johan siden 2009. Vi er kjent for presise klipp og naturlige fargeresultater.'],
+  ['Grünerløkka Hårstudio', 'Frisør', 'Grünerløkka Torg 4, Oslo', 'Grünerløkka', 59.9230, 10.7580, 4.7, 70, 12, [0, 1, 4],
+    'Lite og personlig studio med fokus på balayage og levende farger.'],
+  ['Oslo Massasje & Velvære', 'Massasje', 'Bogstadveien 45, Oslo', 'Majorstuen', 59.9275, 10.7175, 4.4, 55, 24, [0, 1, 2, 3],
+    'Behandlingsrom i rolige omgivelser, et steinkast fra Bogstadveien.'],
+  ['Negleriet Oslo', 'Negler', 'Thorvald Meyers gate 22, Oslo', 'Grünerløkka', 59.9205, 10.7590, 4.6, 92, 12, [0, 1, 2, 3],
+    'Negledesign, gelé og forlengelse. Vi bruker bare vegane produkter.'],
+  ['Hudpleieklinikken Oslo', 'Hudpleie', 'Grensen 9, Oslo', 'Sentrum', 59.9135, 10.7445, 4.8, 61, 24, [0, 1, 3],
+    'Hudterapeuter med lang erfaring. Alle behandlinger starter med en kort hudanalyse.'],
+  ['Voksestudio Oslo', 'Voksing', 'Kirkeveien 78, Oslo', 'Majorstuen', 59.9320, 10.7130, 4.1, 33, 2, [0, 1, 2, 3],
+    'Rask og skånsom voksing med lavtemperatur-voks.'],
+  ['Salong Nord', 'Frisør', 'Markveien 18, Oslo', 'Grünerløkka', 59.9210, 10.7550, 4.3, 47, 12, [1, 2, 4],
+    'Avslappet nabolagssalong på Løkka med kaffe på huset.'],
+  ['Zen Massasje Studio', 'Massasje', 'Frognerveien 33, Oslo', 'Frogner', 59.9205, 10.7110, 4.9, 140, 24, [1, 2],
+    'Japansk-inspirert studio med fokus på dyp avslapning og restitusjon.'],
+  ['Nail Bar Grünerløkka', 'Negler', 'Torggata 7, Oslo', 'Sentrum', 59.9150, 10.7500, 3.9, 18, 2, [0, 2],
+    'Drop-in-vennlig neglebar med kveldsåpent hele uken.'],
+  ['Glow Skincare Studio', 'Hudpleie', 'Aker Brygge 5, Oslo', 'Aker Brygge', 59.9100, 10.7280, 5.0, 102, 24, [0, 1, 2, 3],
+    'Skreddersydde ansiktsbehandlinger med utsikt over fjorden.'],
+  ['Smooth Skin Voksing', 'Voksing', 'Majorstuen Torg 2, Oslo', 'Majorstuen', 59.9295, 10.7150, 4.2, 27, 12, [0, 1, 3],
+    'Profesjonell voksing for både kvinner og menn.'],
+  ['Frisørkollektivet', 'Frisør', 'Sagene Ring 14, Oslo', 'Sagene', 59.9375, 10.7570, 4.5, 83, 12, [0, 2, 3, 5],
+    'Fem frisører under samme tak. Barnevennlig og alltid god stemning.'],
+  ['Massasjehuset Frogner', 'Massasje', 'Vibes gate 8, Oslo', 'Frogner', 59.9235, 10.7230, 4.6, 65, 24, [0, 3],
+    'Klassisk massasje og hot stone i et lyst og rolig lokale.'],
+  ['Salong Glow Negler', 'Negler', 'Sørkedalsveien 60, Oslo', 'Vinderen', 59.9350, 10.6950, 4.0, 22, 2, [1, 2, 3],
+    'Hyggelig neglesalong med gratis parkering rett utenfor.'],
+  ['Ren Hud Klinikk', 'Hudpleie', 'Skovveien 11, Oslo', 'Frogner', 59.9165, 10.7170, 4.7, 44, 24, [0, 1],
+    'Klinikk for hudpleie med fokus på akne og sensitiv hud.'],
+  ['Tøyen Barbershop', 'Barber', 'Hagegata 30, Oslo', 'Tøyen', 59.9140, 10.7720, 4.8, 156, 2, [0, 1, 2, 3],
+    'Fades, skjeggtrim og varmt håndkle. Musikken står alltid på.'],
+  ['Gamle Oslo Barber', 'Barber', 'Schweigaards gate 15, Oslo', 'Gamle Oslo', 59.9090, 10.7600, 4.5, 64, 12, [0, 2, 3, 4],
+    'Tradisjonelt barberhåndverk i moderne lokaler ved Oslo S.'],
+];
+
+const REVIEW_TEXTS = {
+  Frisør: [
+    [5, 'Veldig fornøyd med klippen! Hun tok seg god tid og lyttet til hva jeg ville ha.'],
+    [5, 'Endelig en frisør som får fargen akkurat sånn jeg ønsker. Kommer garantert tilbake.'],
+    [4, 'Fikk akkurat det jeg ba om. Måtte vente ti minutter, men det var verdt det.'],
+    [5, 'Hyggelig stemning og presis oppstart. Booket ny time rett etterpå.'],
+    [3, 'Fint resultat, men litt dyrt for det man får.'],
+  ],
+  Barber: [
+    [5, 'Beste fade jeg har hatt på lenge. Detaljert og nøye arbeid.'],
+    [5, 'Varmt håndkle og barbering med kniv – anbefales på det sterkeste.'],
+    [4, 'Rask og effektiv, og god stemning i lokalet.'],
+    [5, 'Har gått her i to år nå. Alltid like fornøyd.'],
+  ],
+  Negler: [
+    [5, 'Geléneglene holdt i over tre uker. Veldig nøyaktig arbeid.'],
+    [5, 'Koselig sted og flinke ansatte. Fikk mange komplimenter på neglene!'],
+    [3, 'Ble litt forsinket oppstart, men resultatet var fint.'],
+    [4, 'Fine farger å velge mellom og rolig atmosfære.'],
+  ],
+  Massasje: [
+    [5, 'Utrolig avslappende. Massøren fant alle knutene i nakken.'],
+    [5, 'Rolig og rent lokale. Perfekt etter en lang arbeidsuke.'],
+    [4, 'God massasje, men rommet var litt kaldt.'],
+    [5, 'Hot stone-massasjen var helt fantastisk.'],
+  ],
+  Hudpleie: [
+    [5, 'Huden kjentes helt ny ut etterpå. Fikk gode råd om hjemmepleie også.'],
+    [5, 'Grundig og behagelig behandling. Booker igjen neste måned.'],
+    [4, 'Profesjonelt og hyggelig, litt kort tid til selve massasjen.'],
+  ],
+  Voksing: [
+    [5, 'Raskt og nesten smertefritt. Veldig hyggelig behandler.'],
+    [4, 'Rent og ryddig, og godt resultat.'],
+    [3, 'Greit nok, men litt stressende stemning da det var travelt.'],
+  ],
+};
+
+const AUTHORS = [
+  'Kari N.', 'Ola H.', 'Ingrid S.', 'Mohammed A.', 'Sofie L.', 'Jonas B.', 'Emma K.',
+  'Ahmed R.', 'Nora T.', 'Henrik D.', 'Maja P.', 'Elias F.', 'Sara M.', 'Lukas J.',
 ];
 
 // Faste, lesbare ID-er gjør at scriptet kan kjøres flere ganger uten å lage duplikater.
@@ -50,232 +213,181 @@ function slugify(text) {
     .replace(/^-+|-+$/g, '');
 }
 
-const salons = [
-  {
-    "name": "Oslo Frisør & Styling",
-    "category": "Frisør",
-    "address": "Karl Johans gate 12, Oslo",
-    "rating": 4.9,
-    "reviewCount": 128,
-    "services": [
-      { "name": "Herreklipp", "durationMin": 45, "priceNok": 450 },
-      { "name": "Dameklipp", "durationMin": 60, "priceNok": 650 },
-      { "name": "Farging", "durationMin": 90, "priceNok": 1200 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/oslo-frisoer-styling/600/400"
-  },
-  {
-    "name": "Grünerløkka Hårstudio",
-    "category": "Frisør",
-    "address": "Grünerløkka Torg 4, Oslo",
-    "rating": 4.7,
-    "reviewCount": 70,
-    "services": [
-      { "name": "Dameklipp", "durationMin": 60, "priceNok": 650 },
-      { "name": "Herreklipp", "durationMin": 45, "priceNok": 450 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/grunerloekka-haarstudio/600/400"
-  },
-  {
-    "name": "Oslo Massasje & Velvære",
-    "category": "Massasje",
-    "address": "Bogstadveien 45, Oslo",
-    "rating": 4.4,
-    "reviewCount": 55,
-    "services": [
-      { "name": "Klassisk massasje 60 min", "durationMin": 60, "priceNok": 800 },
-      { "name": "Hot stone massasje", "durationMin": 75, "priceNok": 1000 },
-      { "name": "Ryggmassasje 30 min", "durationMin": 30, "priceNok": 500 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/oslo-massasje-velvaere/600/400"
-  },
-  {
-    "name": "Negleriet Oslo",
-    "category": "Negler",
-    "address": "Thorvald Meyers gate 22, Oslo",
-    "rating": 4.6,
-    "reviewCount": 92,
-    "services": [
-      { "name": "Gelenegler", "durationMin": 60, "priceNok": 550 },
-      { "name": "Manikyr", "durationMin": 45, "priceNok": 400 },
-      { "name": "Pedikyr", "durationMin": 60, "priceNok": 550 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/negleriet-oslo/600/400"
-  },
-  {
-    "name": "Hudpleieklinikken Oslo",
-    "category": "Hudpleie",
-    "address": "Grensen 9, Oslo",
-    "rating": 4.8,
-    "reviewCount": 61,
-    "services": [
-      { "name": "Ansiktsbehandling", "durationMin": 60, "priceNok": 900 },
-      { "name": "Dybderens", "durationMin": 75, "priceNok": 1100 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/hudpleieklinikken-oslo/600/400"
-  },
-  {
-    "name": "Voksestudio Oslo",
-    "category": "Voksing",
-    "address": "Kirkeveien 78, Oslo",
-    "rating": 4.1,
-    "reviewCount": 33,
-    "services": [
-      { "name": "Ben voksing", "durationMin": 45, "priceNok": 500 },
-      { "name": "Helkropp voksing", "durationMin": 90, "priceNok": 1200 },
-      { "name": "Vipper voksing", "durationMin": 15, "priceNok": 150 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/voksestudio-oslo/600/400"
-  },
-  {
-    "name": "Salong Nord",
-    "category": "Frisør",
-    "address": "Markveien 18, Oslo",
-    "rating": 4.3,
-    "reviewCount": 47,
-    "services": [
-      { "name": "Herreklipp", "durationMin": 45, "priceNok": 450 },
-      { "name": "Striper/Balayage", "durationMin": 120, "priceNok": 1600 },
-      { "name": "Barneklipp", "durationMin": 30, "priceNok": 300 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/salong-nord/600/400"
-  },
-  {
-    "name": "Zen Massasje Studio",
-    "category": "Massasje",
-    "address": "Frognerveien 33, Oslo",
-    "rating": 4.9,
-    "reviewCount": 140,
-    "services": [
-      { "name": "Dyp vevsmassasje", "durationMin": 60, "priceNok": 900 },
-      { "name": "Klassisk massasje 60 min", "durationMin": 60, "priceNok": 800 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/zen-massasje-studio/600/400"
-  },
-  {
-    "name": "Nail Bar Grünerløkka",
-    "category": "Negler",
-    "address": "Torggata 7, Oslo",
-    "rating": 3.9,
-    "reviewCount": 18,
-    "services": [
-      { "name": "Manikyr", "durationMin": 45, "priceNok": 400 },
-      { "name": "Neglforlengelse", "durationMin": 90, "priceNok": 750 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/nail-bar-grunerloekka/600/400"
-  },
-  {
-    "name": "Glow Skincare Studio",
-    "category": "Hudpleie",
-    "address": "Aker Brygge 5, Oslo",
-    "rating": 5.0,
-    "reviewCount": 102,
-    "services": [
-      { "name": "Anti-age behandling", "durationMin": 90, "priceNok": 1400 },
-      { "name": "Ansiktsbehandling", "durationMin": 60, "priceNok": 900 },
-      { "name": "Dybderens", "durationMin": 75, "priceNok": 1100 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/glow-skincare-studio/600/400"
-  },
-  {
-    "name": "Smooth Skin Voksing",
-    "category": "Voksing",
-    "address": "Majorstuen Torg 2, Oslo",
-    "rating": 4.2,
-    "reviewCount": 27,
-    "services": [
-      { "name": "Vipper voksing", "durationMin": 15, "priceNok": 150 },
-      { "name": "Ben voksing", "durationMin": 45, "priceNok": 500 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/smooth-skin-voksing/600/400"
-  },
-  {
-    "name": "Frisørkollektivet",
-    "category": "Frisør",
-    "address": "Sagene Ring 14, Oslo",
-    "rating": 4.5,
-    "reviewCount": 83,
-    "services": [
-      { "name": "Dameklipp", "durationMin": 60, "priceNok": 650 },
-      { "name": "Farging", "durationMin": 90, "priceNok": 1200 },
-      { "name": "Barneklipp", "durationMin": 30, "priceNok": 300 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/frisoerkollektivet/600/400"
-  },
-  {
-    "name": "Massasjehuset Frogner",
-    "category": "Massasje",
-    "address": "Vibes gate 8, Oslo",
-    "rating": 4.6,
-    "reviewCount": 65,
-    "services": [
-      { "name": "Ryggmassasje 30 min", "durationMin": 30, "priceNok": 500 },
-      { "name": "Hot stone massasje", "durationMin": 75, "priceNok": 1000 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/massasjehuset-frogner/600/400"
-  },
-  {
-    "name": "Salong Glow Negler",
-    "category": "Negler",
-    "address": "Sørkedalsveien 60, Oslo",
-    "rating": 4.0,
-    "reviewCount": 22,
-    "services": [
-      { "name": "Gelenegler", "durationMin": 60, "priceNok": 550 },
-      { "name": "Pedikyr", "durationMin": 60, "priceNok": 550 },
-      { "name": "Neglforlengelse", "durationMin": 90, "priceNok": 750 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/salong-glow-negler/600/400"
-  },
-  {
-    "name": "Ren Hud Klinikk",
-    "category": "Hudpleie",
-    "address": "Skovveien 11, Oslo",
-    "rating": 4.7,
-    "reviewCount": 44,
-    "services": [
-      { "name": "Dybderens", "durationMin": 75, "priceNok": 1100 },
-      { "name": "Ansiktsbehandling", "durationMin": 60, "priceNok": 900 }
-    ],
-    "imageUrl": "https://picsum.photos/seed/ren-hud-klinikk/600/400"
-  }
-];
-
-async function seedSalons() {
-  const salonsRef = db.collection('salons');
-  const batch = db.batch();
-  const seededIds = new Set();
-
-  salons.forEach((salon, index) => {
-    const id = slugify(salon.name);
-    seededIds.add(id);
-    batch.set(salonsRef.doc(id), {
-      ...salon,
-      services: salon.services.map((service) => ({ id: slugify(service.name), ...service })),
-      openingHours: OPENING_HOURS[index % OPENING_HOURS.length],
-    });
-  });
-
-  // Fjern salonger fra tidligere kjøringer (tilfeldige ID-er og gammelt dataformat)
-  const existing = await salonsRef.listDocuments();
-  const stale = existing.filter((docRef) => !seededIds.has(docRef.id));
-  stale.forEach((docRef) => batch.delete(docRef));
-
-  await batch.commit();
-  console.log(`Lagret ${salons.length} salonger, fjernet ${stale.length} gamle.`);
+function rotate(list, offset, count) {
+  return Array.from({ length: count }, (_, index) => list[(offset + index) % list.length]);
 }
 
-async function seedDemoUser() {
+function buildSalons() {
+  const counters = {};
+  return SALONS.map(([name, category, address, area, lat, lng, rating, reviewCount, cancellationHours, serviceIdx, description], index) => {
+    const offset = counters[category] ?? 0;
+    counters[category] = offset + 1;
+    const staffCount = category === 'Voksing' ? 2 : 2 + (index % 2);
+
+    return {
+      id: slugify(name),
+      data: {
+        name,
+        category,
+        address,
+        area,
+        description,
+        phone: `+47 000 00 ${String(100 + index).slice(-3)}`,
+        imageUrl: photo(PHOTOS[category][(offset * 3) % PHOTOS[category].length]),
+        photos: rotate(PHOTOS[category], offset * 3, 3).map(photo),
+        location: { lat, lng },
+        ratingSum: Math.round(rating * reviewCount),
+        reviewCount,
+        cancellationHours,
+        services: serviceIdx.map((serviceIndex) => {
+          const [group, serviceName, durationMin, basePrice, serviceDescription] = SERVICES[category][serviceIndex];
+          // Litt prisvariasjon mellom salongene
+          const priceNok = Math.round((basePrice * (0.9 + (index % 4) * 0.07)) / 10) * 10;
+          return {
+            id: slugify(serviceName),
+            category: group,
+            name: serviceName,
+            durationMin,
+            priceNok,
+            ...(serviceDescription ? { description: serviceDescription } : {}),
+          };
+        }),
+        staff: rotate(STAFF[category], offset, staffCount).map(([staffName, title]) => ({
+          id: slugify(staffName.split(' ')[0]),
+          name: staffName,
+          title,
+        })),
+        openingHours: OPENING_HOURS[index % OPENING_HOURS.length],
+      },
+    };
+  });
+}
+
+function buildReviews(salons) {
+  const reviews = [];
+  salons.forEach(({ id, data }, salonIndex) => {
+    const texts = REVIEW_TEXTS[data.category];
+    texts.forEach(([rating, comment], reviewIndex) => {
+      const daysAgo = 3 + reviewIndex * 11 + (salonIndex % 7);
+      const service = data.services[(reviewIndex + salonIndex) % data.services.length];
+      reviews.push({
+        id: `seed_${id}_${reviewIndex + 1}`,
+        data: {
+          salonId: id,
+          rating,
+          comment,
+          authorName: AUTHORS[(salonIndex * 3 + reviewIndex) % AUTHORS.length],
+          serviceName: service.name,
+          createdAt: Timestamp.fromDate(new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)),
+        },
+      });
+    });
+  });
+  return reviews;
+}
+
+async function seedSalons() {
+  const salons = buildSalons();
+  const reviews = buildReviews(salons);
+  const batch = db.batch();
+
+  salons.forEach(({ id, data }) => batch.set(db.collection('salons').doc(id), data));
+  reviews.forEach(({ id, data }) => batch.set(db.collection('reviews').doc(id), data));
+
+  // Fjern salonger og eksempelanmeldelser fra tidligere kjøringer som ikke lenger finnes
+  const salonIds = new Set(salons.map((salon) => salon.id));
+  const reviewIds = new Set(reviews.map((review) => review.id));
+  const staleSalons = (await db.collection('salons').listDocuments()).filter((ref) => !salonIds.has(ref.id));
+  const staleReviews = (await db.collection('reviews').listDocuments()).filter(
+    (ref) => ref.id.startsWith('seed_') && !reviewIds.has(ref.id)
+  );
+  [...staleSalons, ...staleReviews].forEach((ref) => batch.delete(ref));
+
+  await batch.commit();
+  console.log(`Lagret ${salons.length} salonger og ${reviews.length} anmeldelser, fjernet ${staleSalons.length} gamle salonger.`);
+  return salons;
+}
+
+async function seedDemoUser(salons) {
+  let uid;
   try {
-    await getAuth().createUser(DEMO_USER);
+    uid = (await getAuth().createUser(DEMO_USER)).uid;
     console.log(`Opprettet testkonto ${DEMO_USER.email} i emulatoren.`);
   } catch (error) {
     if (error.code !== 'auth/email-already-exists') throw error;
+    uid = (await getAuth().getUserByEmail(DEMO_USER.email)).uid;
   }
+
+  await db.collection('users').doc(uid).set({ name: DEMO_USER.displayName, phone: '+47 000 00 000', updatedAt: FieldValue.serverTimestamp() });
+
+  // En fullført time (kan anmeldes) og en kommende time (kan flyttes og avbestilles)
+  const salon = salons.find((item) => item.id === 'salong-nord');
+  const service = salon.data.services[0];
+  const staff = salon.data.staff[0];
+  const day = (offset) => {
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+    return date;
+  };
+  const pad = (value) => String(value).padStart(2, '0');
+  const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+
+  const bookings = [
+    { id: 'demo-past', date: day(-5), time: '11:00' },
+    { id: 'demo-upcoming', date: day(3), time: '14:00' },
+  ];
+  const batch = db.batch();
+  for (const booking of bookings) {
+    const key = dateKey(booking.date);
+    const [hours, minutes] = booking.time.split(':').map(Number);
+    const startAt = new Date(booking.date.getFullYear(), booking.date.getMonth(), booking.date.getDate(), hours, minutes);
+    const slotTimes = Array.from({ length: Math.ceil(service.durationMin / 30) }, (_, index) => {
+      const total = hours * 60 + minutes + index * 30;
+      return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+    });
+    const slotIds = slotTimes.map((time) => `${salon.id}_${staff.id}_${key}_${time}`);
+    const upcoming = booking.id === 'demo-upcoming';
+
+    batch.set(db.collection('bookings').doc(booking.id), {
+      userId: uid,
+      customerName: DEMO_USER.displayName,
+      customerPhone: '+47 000 00 000',
+      note: '',
+      salonId: salon.id,
+      salonName: salon.data.name,
+      serviceId: service.id,
+      serviceName: service.name,
+      staffId: staff.id,
+      staffName: staff.name,
+      durationMin: service.durationMin,
+      priceNok: service.priceNok,
+      date: key,
+      time: booking.time,
+      startAt: Timestamp.fromDate(startAt),
+      endAt: Timestamp.fromDate(new Date(startAt.getTime() + service.durationMin * 60000)),
+      cancellableUntil: Timestamp.fromDate(new Date(startAt.getTime() - salon.data.cancellationHours * 3600000)),
+      slotIds: upcoming ? slotIds : [],
+      status: 'confirmed',
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    if (upcoming) {
+      slotTimes.forEach((time, index) => {
+        batch.set(db.collection('slots').doc(slotIds[index]), {
+          salonId: salon.id,
+          staffId: staff.id,
+          date: key,
+          time,
+          bookingId: booking.id,
+        });
+      });
+    }
+  }
+  await batch.commit();
+  console.log('La inn en fullført og en kommende time for testkontoen.');
 }
 
 seedSalons()
-  .then(() => (useEmulator ? seedDemoUser() : undefined))
+  .then((salons) => (useEmulator ? seedDemoUser(salons) : undefined))
   .catch((error) => {
     console.error(error);
     process.exit(1);
