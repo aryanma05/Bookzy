@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import type { TakenSlots } from '@/lib/schedule';
 
-type TakenTimes = { key: string; times: Set<string>; error: boolean };
+type State = { key: string; taken: TakenSlots; error: boolean };
 
-/** Lytter på opptatte luker for en salong på en dato. `times` er null mens de lastes. */
-export function useTakenTimes(salonId: string | null, dateKey: string) {
+/** Lytter på opptatte luker for en salong på en dato, gruppert per ansatt. `taken` er null mens de lastes. */
+export function useTakenSlots(salonId: string | null, dateKey: string) {
   const key = `${salonId}_${dateKey}`;
-  const [state, setState] = useState<TakenTimes | null>(null);
+  const [state, setState] = useState<State | null>(null);
 
   useEffect(() => {
     if (!salonId) return;
@@ -21,16 +22,21 @@ export function useTakenTimes(salonId: string | null, dateKey: string) {
     return onSnapshot(
       slotsQuery,
       (snapshot) => {
-        const times = new Set(snapshot.docs.map((slot) => slot.data().time as string));
-        setState({ key, times, error: false });
+        const taken: TakenSlots = new Map();
+        for (const slot of snapshot.docs) {
+          const { staffId, time } = slot.data() as { staffId: string; time: string };
+          if (!taken.has(staffId)) taken.set(staffId, new Set());
+          taken.get(staffId)!.add(time);
+        }
+        setState({ key, taken, error: false });
       },
       (error) => {
         console.error('Kunne ikke hente opptatte tider:', error);
-        setState({ key, times: new Set(), error: true });
+        setState({ key, taken: new Map(), error: true });
       }
     );
   }, [salonId, dateKey, key]);
 
   const current = state?.key === key ? state : null;
-  return { times: current?.times ?? null, error: current?.error ?? false };
+  return { taken: current?.taken ?? null, error: current?.error ?? false };
 }

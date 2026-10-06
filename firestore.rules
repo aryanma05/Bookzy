@@ -7,6 +7,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isUser(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
     function bookingPath(bookingId) {
       return /databases/$(database)/documents/bookings/$(bookingId);
     }
@@ -15,10 +19,47 @@ service cloud.firestore {
       return /databases/$(database)/documents/slots/$(slotId);
     }
 
-    // Salonger er offentlige. Bare seed-scriptet (Admin SDK, som går utenom reglene) kan skrive.
+    function salonPath(salonId) {
+      return /databases/$(database)/documents/salons/$(salonId);
+    }
+
+    function reviewPath(reviewId) {
+      return /databases/$(database)/documents/reviews/$(reviewId);
+    }
+
+    // Salonger er offentlige. Seed-scriptet (Admin SDK) går utenom reglene.
+    // Fra appen er eneste tillatte endring å telle med en ny anmeldelse, i samme transaksjon som anmeldelsen.
     match /salons/{salonId} {
       allow read: if true;
-      allow write: if false;
+
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingSum', 'reviewCount', 'lastReviewId'])
+        && request.resource.data.reviewCount == resource.data.reviewCount + 1
+        && !exists(reviewPath(request.resource.data.lastReviewId))
+        && getAfter(reviewPath(request.resource.data.lastReviewId)).data.salonId == salonId
+        && request.resource.data.ratingSum
+          == resource.data.ratingSum + getAfter(reviewPath(request.resource.data.lastReviewId)).data.rating;
+
+      allow create, delete: if false;
+    }
+
+    // Profil og favoritter – bare for eieren.
+    match /users/{uid} {
+      allow read, delete: if isUser(uid);
+
+      allow create, update: if isUser(uid)
+        && request.resource.data.keys().hasOnly(['name', 'phone', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 20;
+
+      match /favorites/{salonId} {
+        allow read, delete: if isUser(uid);
+        allow create: if isUser(uid)
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt == request.time;
+      }
     }
 
     // En bruker kan bare se, opprette og avbestille sine egne timer.
@@ -27,31 +68,38 @@ service cloud.firestore {
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
-          'userId', 'customerName', 'salonId', 'salonName', 'serviceId', 'serviceName',
-          'durationMin', 'priceNok', 'date', 'time', 'startAt', 'endAt', 'slotIds',
-          'status', 'createdAt'
+          'userId', 'customerName', 'customerPhone', 'note',
+          'salonId', 'salonName', 'serviceId', 'serviceName', 'staffId', 'staffName',
+          'durationMin', 'priceNok', 'date', 'time', 'startAt', 'endAt', 'cancellableUntil',
+          'slotIds', 'status', 'createdAt'
         ])
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'confirmed'
         && request.resource.data.createdAt == request.time
+        && request.resource.data.customerPhone is string
+        && request.resource.data.customerPhone.size() <= 20
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 500
         && request.resource.data.durationMin is int
         && request.resource.data.priceNok is number
         && request.resource.data.startAt is timestamp
         && request.resource.data.endAt is timestamp
         && request.resource.data.startAt > request.time
         && request.resource.data.endAt > request.resource.data.startAt
-        && exists(/databases/$(database)/documents/salons/$(request.resource.data.salonId))
+        // Avbestillingsfristen bestemmes av salongen, ikke av appen
+        && request.resource.data.cancellableUntil
+          == request.resource.data.startAt - duration.value(get(salonPath(request.resource.data.salonId)).data.cancellationHours, 'h')
         && request.resource.data.slotIds is list
         && request.resource.data.slotIds.size() > 0
         && request.resource.data.slotIds.size() <= 16
         // Bookingen må skrives sammen med lukene sine (samme transaksjon)
         && getAfter(slotPath(request.resource.data.slotIds[0])).data.bookingId == bookingId;
 
-      // Eneste tillatte endring er å avbestille en fremtidig time.
+      // Eneste tillatte endring er å avbestille før salongens frist.
       allow update: if signedIn()
         && resource.data.userId == request.auth.uid
         && resource.data.status == 'confirmed'
-        && resource.data.startAt > request.time
+        && request.time < resource.data.cancellableUntil
         && request.resource.data.status == 'cancelled'
         && request.resource.data.cancelledAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']);
@@ -59,16 +107,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Én 30-minutters luke per salong/dato/tid. Dokumentet kan bare opprettes, aldri overskrives,
+    // Én 30-minutters luke per salong/ansatt/dato/tid. Dokumentet kan bare opprettes, aldri overskrives,
     // så to bookinger kan ikke få samme luke. Inneholder ingen persondata, så alle kan lese.
     match /slots/{slotId} {
       allow read: if true;
 
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['salonId', 'date', 'time', 'bookingId'])
-        && slotId == request.resource.data.salonId + '_' + request.resource.data.date + '_' + request.resource.data.time
+        && request.resource.data.keys().hasOnly(['salonId', 'staffId', 'date', 'time', 'bookingId'])
+        && slotId == request.resource.data.salonId + '_' + request.resource.data.staffId + '_'
+          + request.resource.data.date + '_' + request.resource.data.time
         && getAfter(bookingPath(request.resource.data.bookingId)).data.userId == request.auth.uid
         && getAfter(bookingPath(request.resource.data.bookingId)).data.salonId == request.resource.data.salonId
+        && getAfter(bookingPath(request.resource.data.bookingId)).data.staffId == request.resource.data.staffId
         && getAfter(bookingPath(request.resource.data.bookingId)).data.date == request.resource.data.date
         && slotId in getAfter(bookingPath(request.resource.data.bookingId)).data.slotIds;
 
@@ -78,6 +128,30 @@ service cloud.firestore {
         && getAfter(bookingPath(resource.data.bookingId)).data.status == 'cancelled';
 
       allow update: if false;
+    }
+
+    // Anmeldelser er offentlige. ID-en er bookingens ID, så hver time kan anmeldes én gang,
+    // og bare av den som faktisk hadde timen.
+    match /reviews/{bookingId} {
+      allow read: if true;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['salonId', 'rating', 'comment', 'authorName', 'serviceName', 'createdAt'])
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() <= 1000
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() <= 60
+        && request.resource.data.createdAt == request.time
+        && get(bookingPath(bookingId)).data.userId == request.auth.uid
+        && get(bookingPath(bookingId)).data.status == 'confirmed'
+        && get(bookingPath(bookingId)).data.endAt < request.time
+        && get(bookingPath(bookingId)).data.salonId == request.resource.data.salonId
+        && getAfter(salonPath(request.resource.data.salonId)).data.lastReviewId == bookingId;
+
+      allow update, delete: if false;
     }
   }
 }
