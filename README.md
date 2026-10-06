@@ -1,5 +1,6 @@
 # Timeflyt
 
+
 Bookingtjeneste for salonger (frisør, massasje, negler, hudpleie, voksing) – book en time på noen få trykk i stedet for via private meldinger. Bygget med Expo (SDK 57) og Firebase, for iOS, Android og web.
 
 ## Kom i gang
@@ -58,3 +59,4 @@ tests/               tester for sikkerhetsreglene
 - `salons/{id}` – navn, kategori, adresse, `rating`, `reviewCount`, `services[]` (`id`, `name`, `durationMin`, `priceNok`) og `openingHours` per ukedag. Kun lesbar fra appen.
 - `bookings/{id}` – én time: kunde, salong, tjeneste, `date`, `time`, `startAt`, `slotIds`, `status` (`confirmed`/`cancelled`). Bare eieren kan lese og avbestille.
 - `slots/{salongId_dato_tid}` – én 30-minutters luke. Opprettes i samme transaksjon som bookingen og kan aldri overskrives, slik at to kunder ikke kan få samme tid. Slettes ved avbestilling.
+
