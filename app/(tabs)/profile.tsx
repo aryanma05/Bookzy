@@ -1,56 +1,85 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@/context/AuthContext';
+import { showAlert } from '@/lib/alert';
+
+const comingSoon = () => showAlert('Kommer snart', 'Denne delen av appen er ikke ferdig ennå.');
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { user, displayName, signOut } = useAuth();
+
+  const handleSignOut = () => {
+    signOut().catch((error) => {
+      console.error('Kunne ikke logge ut:', error);
+      showAlert('Noe gikk galt', 'Kunne ikke logge ut. Prøv igjen.');
+    });
+  };
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <View style={styles.profileImageContainer}>
+            <Ionicons name="person" size={50} color="gray" />
+          </View>
+          <Text style={styles.name}>Ikke logget inn</Text>
+          <Text style={styles.email}>Logg inn for å bestille og se timene dine.</Text>
+          <Pressable style={styles.loginButton} onPress={() => router.push('/login')}>
+            <Text style={styles.loginText}>Logg inn eller opprett konto</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Toppseksjon med profilbilde */}
-      <View style={styles.header}>
-        <View style={styles.profileImageContainer}>
-          <Ionicons name="person" size={50} color="gray" />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView style={styles.container}>
+        {/* Toppseksjon med profilbilde */}
+        <View style={styles.header}>
+          <View style={styles.profileImageContainer}>
+            <Ionicons name="person" size={50} color="gray" />
+          </View>
+          <Text style={styles.name}>{displayName || 'Uten navn'}</Text>
+          <Text style={styles.email}>{user.email}</Text>
         </View>
-        <Text style={styles.name}>Aryan Ali</Text>
-        <Text style={styles.email}>aryan.ali@student.uio.no</Text>
-      </View>
 
-      {/* Menyliste */}
-      <View style={styles.menuContainer}>
-        <Text style={styles.sectionTitle}>Konto</Text>
+        {/* Menyliste */}
+        <View style={styles.menuContainer}>
+          <Text style={styles.sectionTitle}>Konto</Text>
         
-        <Pressable style={styles.menuItem}>
-          <Ionicons name="person-circle-outline" size={24} color="black" />
-          <Text style={styles.menuText}>Personlige opplysninger</Text>
-          <Ionicons name="chevron-forward" size={20} color="gray" style={styles.arrow} />
-        </Pressable>
+          <Pressable style={styles.menuItem} onPress={comingSoon}>
+            <Ionicons name="person-circle-outline" size={24} color="black" />
+            <Text style={styles.menuText}>Personlige opplysninger</Text>
+            <Ionicons name="chevron-forward" size={20} color="gray" style={styles.arrow} />
+          </Pressable>
 
-        <Pressable style={styles.menuItem}>
-          <Ionicons name="card-outline" size={24} color="black" />
-          <Text style={styles.menuText}>Betalingsmetoder</Text>
-          <Ionicons name="chevron-forward" size={20} color="gray" style={styles.arrow} />
-        </Pressable>
-      </View>
+          <Pressable style={styles.menuItem} onPress={comingSoon}>
+            <Ionicons name="card-outline" size={24} color="black" />
+            <Text style={styles.menuText}>Betalingsmetoder</Text>
+            <Ionicons name="chevron-forward" size={20} color="gray" style={styles.arrow} />
+          </Pressable>
+        </View>
 
-      <View style={styles.menuContainer}>
-        <Text style={styles.sectionTitle}>Bedrift</Text>
+        <View style={styles.menuContainer}>
+          <Text style={styles.sectionTitle}>Bedrift</Text>
         
-        <Pressable style={styles.menuItem}>
-          <Ionicons name="business-outline" size={24} color="black" />
-          <Text style={styles.menuText}>Registrer din bedrift</Text>
-          <Ionicons name="chevron-forward" size={20} color="gray" style={styles.arrow} />
-        </Pressable>
-      </View>
+          <Pressable style={styles.menuItem} onPress={comingSoon}>
+            <Ionicons name="business-outline" size={24} color="black" />
+            <Text style={styles.menuText}>Registrer din bedrift</Text>
+            <Ionicons name="chevron-forward" size={20} color="gray" style={styles.arrow} />
+          </Pressable>
+        </View>
 
-      {/* Logg ut-knapp */}
-      <Pressable 
-        style={styles.logoutButton} 
-        onPress={() => router.replace('/')} // Sender deg tilbake til bakgrunnsbildet / index.tsx
-      >
-        <Text style={styles.logoutText}>Logg ut</Text>
-      </Pressable>
-    </ScrollView>
+        {/* Logg ut-knapp */}
+        <Pressable style={styles.logoutButton} onPress={handleSignOut}>
+          <Text style={styles.logoutText}>Logg ut</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -82,6 +111,20 @@ const styles = StyleSheet.create({
   email: {
     color: 'gray',
     marginTop: 5,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  loginButton: {
+    marginTop: 20,
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 20,
+  },
+  loginText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   menuContainer: {
     backgroundColor: 'white',

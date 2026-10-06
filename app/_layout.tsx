@@ -1,20 +1,48 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
-import { BookingProvider } from './context/BookingContext';
+import * as SplashScreen from 'expo-splash-screen';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { BookingProvider } from '@/context/BookingContext';
+import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
+
+// Må kalles her i rot-layouten, ikke på en enkelt skjerm – ellers henger splash-skjermen
+// hvis appen åpnes via en lenke rett til en annen side.
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    // Nå pakker vi INN HELE APPEN i ryggsekken
-    <BookingProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        {/* Dette skjuler topp-menyen på innloggingssiden */}
-        <Stack.Screen name="index" />
-        
-        {/* Dette skjuler den doble topp-menyen for fanene */}
-        <Stack.Screen name="(tabs)" />
-        
-        {/* Dette forteller at business-siden eksisterer */}
-        <Stack.Screen name="business/[id]" />
-      </Stack>
-    </BookingProvider>
+    <AuthProvider>
+      <OnboardingProvider>
+        <BookingProvider>
+          <RootNavigator />
+        </BookingProvider>
+      </OnboardingProvider>
+    </AuthProvider>
+  );
+}
+
+function RootNavigator() {
+  const { initializing } = useAuth();
+  const { ready: onboardingReady } = useOnboarding();
+  const isReady = !initializing && onboardingReady;
+
+  // Splash-skjermen står til vi vet om brukeren er innlogget og har sett onboarding.
+  useEffect(() => {
+    if (isReady) {
+      SplashScreen.hide();
+    }
+  }, [isReady]);
+
+  if (!isReady) {
+    return null;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="business/[id]" />
+      <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+    </Stack>
   );
 }
