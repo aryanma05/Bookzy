@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SalonPhoto } from '@/components/salon-photo';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ScreenHeader } from '@/components/ui/screen-header';
@@ -16,7 +16,7 @@ import { useSalons } from '@/context/SalonsContext';
 import { useNow } from '@/hooks/use-now';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
-import { formatCancellationPolicy, formatDuration, formatPrice } from '@/lib/salons';
+import { displayAddress, formatCancellationPolicy, formatDuration, formatPrice } from '@/lib/salons';
 import { formatDay, formatShortDate, fromDateKey, toMinutes, toStartDate, toTime } from '@/lib/schedule';
 
 function DetailRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
@@ -118,10 +118,10 @@ export default function ConfirmBookingScreen() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.salonCard}>
-            <Image source={salon.imageUrl ? { uri: salon.imageUrl } : undefined} style={styles.salonImage} contentFit="cover" />
+            <SalonPhoto salon={salon} style={styles.salonImage} iconSize={24} />
             <View style={styles.salonText}>
               <Text variant="subheading">{salon.name}</Text>
-              <Text variant="caption">{salon.address}</Text>
+              <Text variant="caption">{displayAddress(salon)}</Text>
             </View>
           </View>
 

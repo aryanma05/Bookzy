@@ -24,6 +24,7 @@ import {
 } from 'firebase/firestore';
 
 const SALON_ID = 'test-salong';
+const OWNER = 'eier';
 const DATE = '2099-01-15';
 const HOUR = 60 * 60 * 1000;
 
@@ -43,14 +44,30 @@ after(async () => {
 beforeEach(async () => {
   await testEnv.clearFirestore();
   await asAdmin((firestore) =>
-    setDoc(doc(firestore, 'salons', SALON_ID), {
-      name: 'Testsalong',
-      cancellationHours: 24,
-      ratingSum: 40,
-      reviewCount: 10,
-    })
+    setDoc(doc(firestore, 'salons', SALON_ID), { ...salonData(), ownerId: OWNER, ratingSum: 40, reviewCount: 10 })
   );
 });
+
+/** Alle feltene eieren kan redigere – appen skriver alltid hele settet. */
+function salonData(overrides = {}) {
+  return {
+    name: 'Testsalong',
+    category: 'Frisør',
+    description: '',
+    address: 'Testveien 1, Oslo',
+    area: 'Sentrum',
+    phone: '',
+    locationType: 'salon',
+    services: [],
+    staff: [{ id: 'maria', name: 'Maria', title: '' }, { id: 'jonas', name: 'Jonas', title: '' }],
+    openingHours: { mon: { open: '09:00', close: '17:00' }, sun: null },
+    closedDates: [],
+    cancellationHours: 24,
+    published: true,
+    updatedAt: serverTimestamp(),
+    ...overrides,
+  };
+}
 
 const db = (uid) =>
   uid ? testEnv.authenticatedContext(uid).firestore() : testEnv.unauthenticatedContext().firestore();
@@ -364,5 +381,205 @@ describe('profil og favoritter', () => {
   test('andre kan ikke se eller endre favorittene', async () => {
     await assertFails(setDoc(doc(db('bob'), 'users', 'alice', 'favorites', SALON_ID), { createdAt: serverTimestamp() }));
     await assertFails(getDocs(collection(db('bob'), 'users', 'alice', 'favorites')));
+  });
+});
+
+describe('registrere bedrift', () => {
+  const newSalon = (uid, overrides = {}) =>
+    setDoc(doc(db(uid), 'salons', 'ny-salong'), {
+      ...salonData({ name: 'Negler hos Lina', locationType: 'home', published: false }),
+      ownerId: uid,
+      ratingSum: 0,
+      reviewCount: 0,
+      createdAt: serverTimestamp(),
+      ...overrides,
+    });
+
+  test('innlogget bruker kan registrere en bedrift og blir eier', async () => {
+    await assertSucceeds(newSalon('lina'));
+  });
+
+  test('utlogget bruker kan ikke registrere', async () => {
+    await assertFails(newSalon(null, { ownerId: 'lina' }));
+  });
+
+  test('kan ikke registrere i andres navn', async () => {
+    await assertFails(newSalon('lina', { ownerId: 'noen-andre' }));
+  });
+
+  test('kan ikke starte med egne anmeldelser', async () => {
+    await assertFails(newSalon('lina', { ratingSum: 50, reviewCount: 10 }));
+  });
+
+  test('må ha minst én som tar imot kunder', async () => {
+    await assertFails(newSalon('lina', { staff: [] }));
+  });
+
+  test('kan ikke overta en eksisterende salong', async () => {
+    await assertFails(
+      setDoc(doc(db('lina'), 'salons', SALON_ID), {
+        ...salonData(),
+        ownerId: 'lina',
+        ratingSum: 0,
+        reviewCount: 0,
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+});
+
+describe('redigere salongen', () => {
+  test('eieren kan endre tjenester, ansatte, åpningstider og fridager', async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(db(OWNER), 'salons', SALON_ID),
+        salonData({
+          services: [{ id: 'klipp', name: 'Klipp', category: 'Klipp', durationMin: 45, priceNok: 500 }],
+          openingHours: { mon: { open: '10:00', close: '18:00' }, tue: null },
+          closedDates: ['2099-01-20', '2099-01-21_maria'],
+        })
+      )
+    );
+  });
+
+  test('andre kan ikke endre salongen', async () => {
+    await assertFails(updateDoc(doc(db('alice'), 'salons', SALON_ID), salonData({ name: 'Hacket' })));
+  });
+
+  test('eieren kan ikke endre snittet eller eierskapet', async () => {
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), { ...salonData(), ratingSum: 50 }));
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), { ...salonData(), ownerId: 'alice' }));
+  });
+
+  test('ugyldige verdier avvises', async () => {
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ cancellationHours: -1 })));
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ locationType: 'slott' })));
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ openingHours: { mandag: null } })));
+  });
+
+  test('kan ikke slette salongen', async () => {
+    await assertFails(deleteDoc(doc(db(OWNER), 'salons', SALON_ID)));
+  });
+});
+
+describe('fridager', () => {
+  test('kan ikke booke når salongen har stengt', async () => {
+    await asAdmin((firestore) => updateDoc(doc(firestore, 'salons', SALON_ID), { closedDates: [DATE] }));
+    await assertFails(book(db('alice'), 'alice').commit());
+  });
+
+  test('kan ikke booke en ansatt som har fri, men en annen', async () => {
+    await asAdmin((firestore) => updateDoc(doc(firestore, 'salons', SALON_ID), { closedDates: [`${DATE}_maria`] }));
+    await assertFails(book(db('alice'), 'alice').commit());
+    await assertSucceeds(book(db('alice'), 'alice', { staffId: 'jonas' }).commit());
+  });
+});
+
+describe('salongens kalender', () => {
+  beforeEach(async () => {
+    await book(db('alice'), 'alice').commit();
+  });
+
+  test('eieren ser alle timer hos seg, med kundens navn og telefon', async () => {
+    const firestore = db(OWNER);
+    await assertSucceeds(
+      getDocs(
+        query(collection(firestore, 'bookings'), where('salonId', '==', SALON_ID), where('date', '>=', DATE), where('date', '<=', DATE))
+      )
+    );
+    await assertSucceeds(getDoc(doc(firestore, 'bookings', 'booking-alice')));
+  });
+
+  test('eieren kan se en kundes tidligere timer hos seg', async () => {
+    await assertSucceeds(
+      getDocs(query(collection(db(OWNER), 'bookings'), where('salonId', '==', SALON_ID), where('userId', '==', 'alice')))
+    );
+  });
+
+  test('andre salonger ser dem ikke', async () => {
+    await asAdmin((firestore) =>
+      setDoc(doc(firestore, 'salons', 'konkurrent'), { ...salonData(), ownerId: 'konkurrent', ratingSum: 0, reviewCount: 0 })
+    );
+    await assertFails(getDocs(query(collection(db('konkurrent'), 'bookings'), where('salonId', '==', SALON_ID))));
+    await assertFails(getDoc(doc(db('konkurrent'), 'bookings', 'booking-alice')));
+  });
+});
+
+describe('salongen avbestiller', () => {
+  const cancelAsSalon = (firestore, bookingId, times = ['10:00', '10:30']) => {
+    const batch = writeBatch(firestore);
+    batch.update(doc(firestore, 'bookings', bookingId), {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+      cancelledBy: 'salon',
+    });
+    for (const time of times) batch.delete(doc(firestore, 'slots', slotIdFor('maria', time)));
+    return batch.commit();
+  };
+
+  beforeEach(async () => {
+    await book(db('alice'), 'alice').commit();
+  });
+
+  test('eieren kan avbestille og frigjøre lukene', async () => {
+    await assertSucceeds(cancelAsSalon(db(OWNER), 'booking-alice'));
+    await assertSucceeds(book(db('bob'), 'bob').commit());
+  });
+
+  test('eieren kan avbestille selv etter kundens frist', async () => {
+    const start = new Date(Date.now() + 2 * HOUR);
+    await asAdmin((firestore) =>
+      setDoc(
+        doc(firestore, 'bookings', 'snart'),
+        bookingData('alice', {
+          start,
+          overrides: {
+            cancellableUntil: Timestamp.fromDate(new Date(start.getTime() - 24 * HOUR)),
+            slotIds: [],
+            createdAt: Timestamp.now(),
+          },
+        })
+      )
+    );
+    await assertSucceeds(cancelAsSalon(db(OWNER), 'snart', []));
+  });
+
+  test('andre kan ikke avbestille som salongen', async () => {
+    await assertFails(cancelAsSalon(db('bob'), 'booking-alice'));
+  });
+
+  test('eieren kan ikke endre selve timen', async () => {
+    await assertFails(updateDoc(doc(db(OWNER), 'bookings', 'booking-alice'), { priceNok: 0 }));
+  });
+
+  test('eieren kan ikke slette luker uten å avbestille', async () => {
+    await assertFails(deleteDoc(doc(db(OWNER), 'slots', slotIdFor('maria', '10:00'))));
+  });
+});
+
+describe('møtte ikke', () => {
+  const setStatus = (uid, bookingId, status) => updateDoc(doc(db(uid), 'bookings', bookingId), { status });
+
+  test('eieren kan markere og angre etter at timen har startet', async () => {
+    const bookingId = await completedBooking('alice');
+    await assertSucceeds(setStatus(OWNER, bookingId, 'noShow'));
+    await assertSucceeds(setStatus(OWNER, bookingId, 'confirmed'));
+  });
+
+  test('kan ikke markeres før timen har startet', async () => {
+    await book(db('alice'), 'alice').commit();
+    await assertFails(setStatus(OWNER, 'booking-alice', 'noShow'));
+  });
+
+  test('kunden kan ikke endre det selv', async () => {
+    const bookingId = await completedBooking('alice');
+    await setStatus(OWNER, bookingId, 'noShow');
+    await assertFails(setStatus('alice', bookingId, 'confirmed'));
+  });
+
+  test('kan ikke anmelde en time man ikke møtte til', async () => {
+    const bookingId = await completedBooking('alice');
+    await setStatus(OWNER, bookingId, 'noShow');
+    await assertFails(review(db('alice'), bookingId));
   });
 });

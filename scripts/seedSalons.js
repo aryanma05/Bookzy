@@ -8,8 +8,11 @@ const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestor
 
 const useEmulator = process.argv.includes('--emulator');
 
-// Testkonto som bare finnes i den lokale Auth-emulatoren
+// Testkontoer som bare finnes i den lokale Auth-emulatoren
 const DEMO_USER = { email: 'kunde@timeflyt.test', password: 'timeflyt-test', displayName: 'Test Kunde' };
+// Eier av Salong Nord, for å teste bedriftsmodusen
+const DEMO_OWNER = { email: 'salong@timeflyt.test', password: 'timeflyt-test', displayName: 'Lea Andersen' };
+const DEMO_SALON_ID = 'salong-nord';
 
 if (useEmulator) {
   process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
@@ -119,7 +122,7 @@ const OPENING_HOURS = [
   { ...weekdays('09:00', '17:00'), mon: null, sat: { open: '09:00', close: '17:00' }, sun: { open: '12:00', close: '16:00' } },
 ];
 
-// [navn, kategori, adresse, område, lat, lng, snitt, antall anmeldelser, avbestillingsfrist (t), tjenester, beskrivelse]
+// [navn, kategori, adresse, område, lat, lng, snitt, antall anmeldelser, avbestillingsfrist (t), tjenester, beskrivelse, sted]
 const SALONS = [
   ['Oslo Frisør & Styling', 'Frisør', 'Karl Johans gate 12, Oslo', 'Sentrum', 59.9127, 10.7440, 4.9, 128, 24, [0, 1, 3, 5],
     'Midt på Karl Johan siden 2009. Vi er kjent for presise klipp og naturlige fargeresultater.'],
@@ -155,6 +158,8 @@ const SALONS = [
     'Fades, skjeggtrim og varmt håndkle. Musikken står alltid på.'],
   ['Gamle Oslo Barber', 'Barber', 'Schweigaards gate 15, Oslo', 'Gamle Oslo', 59.9090, 10.7600, 4.5, 64, 12, [0, 2, 3, 4],
     'Tradisjonelt barberhåndverk i moderne lokaler ved Oslo S.'],
+  ['Negler hos Linh', 'Negler', '', 'Furuset', 59.9395, 10.8960, 4.9, 23, 24, [0, 1, 3],
+    'Hjemmesalong på Furuset. Rolig og personlig, med parkering rett utenfor.', 'home'],
 ];
 
 const REVIEW_TEXTS = {
@@ -219,10 +224,10 @@ function rotate(list, offset, count) {
 
 function buildSalons() {
   const counters = {};
-  return SALONS.map(([name, category, address, area, lat, lng, rating, reviewCount, cancellationHours, serviceIdx, description], index) => {
+  return SALONS.map(([name, category, address, area, lat, lng, rating, reviewCount, cancellationHours, serviceIdx, description, locationType = 'salon'], index) => {
     const offset = counters[category] ?? 0;
     counters[category] = offset + 1;
-    const staffCount = category === 'Voksing' ? 2 : 2 + (index % 2);
+    const staffCount = locationType === 'home' ? 1 : category === 'Voksing' ? 2 : 2 + (index % 2);
 
     return {
       id: slugify(name),
@@ -258,6 +263,9 @@ function buildSalons() {
           title,
         })),
         openingHours: OPENING_HOURS[index % OPENING_HOURS.length],
+        locationType,
+        closedDates: [],
+        published: true,
       },
     };
   });
@@ -294,10 +302,13 @@ async function seedSalons() {
   salons.forEach(({ id, data }) => batch.set(db.collection('salons').doc(id), data));
   reviews.forEach(({ id, data }) => batch.set(db.collection('reviews').doc(id), data));
 
-  // Fjern salonger og eksempelanmeldelser fra tidligere kjøringer som ikke lenger finnes
+  // Fjern eksempelsalonger og -anmeldelser fra tidligere kjøringer som ikke lenger finnes.
+  // Salonger med eier er registrert av en bedrift i appen og skal aldri røres.
   const salonIds = new Set(salons.map((salon) => salon.id));
   const reviewIds = new Set(reviews.map((review) => review.id));
-  const staleSalons = (await db.collection('salons').listDocuments()).filter((ref) => !salonIds.has(ref.id));
+  const staleSalons = (await db.collection('salons').get()).docs
+    .filter((salon) => !salonIds.has(salon.id) && !salon.get('ownerId'))
+    .map((salon) => salon.ref);
   const staleReviews = (await db.collection('reviews').listDocuments()).filter(
     (ref) => ref.id.startsWith('seed_') && !reviewIds.has(ref.id)
   );
@@ -308,86 +319,150 @@ async function seedSalons() {
   return salons;
 }
 
-async function seedDemoUser(salons) {
-  let uid;
+async function ensureUser({ email, password, displayName }) {
   try {
-    uid = (await getAuth().createUser(DEMO_USER)).uid;
-    console.log(`Opprettet testkonto ${DEMO_USER.email} i emulatoren.`);
+    const { uid } = await getAuth().createUser({ email, password, displayName });
+    console.log(`Opprettet testkonto ${email} i emulatoren.`);
+    return uid;
   } catch (error) {
     if (error.code !== 'auth/email-already-exists') throw error;
-    uid = (await getAuth().getUserByEmail(DEMO_USER.email)).uid;
+    return (await getAuth().getUserByEmail(email)).uid;
   }
+}
 
-  await db.collection('users').doc(uid).set({ name: DEMO_USER.displayName, phone: '+47 000 00 000', updatedAt: FieldValue.serverTimestamp() });
+const pad = (value) => String(value).padStart(2, '0');
+const toKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const toTime = (minutes) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+const toMinutes = (time) => time.split(':').map(Number).reduce((hours, minutes) => hours * 60 + minutes);
+const WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-  // En fullført time (kan anmeldes) og en kommende time (kan flyttes og avbestilles)
-  const salon = salons.find((item) => item.id === 'salong-nord');
-  const service = salon.data.services[0];
-  const staff = salon.data.staff[0];
-  const day = (offset) => {
-    const date = new Date();
-    date.setDate(date.getDate() + offset);
-    return date;
-  };
-  const pad = (value) => String(value).padStart(2, '0');
-  const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+function day(offset) {
+  const date = new Date();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset);
+}
 
-  const bookings = [
-    { id: 'demo-past', date: day(-5), time: '11:00' },
-    { id: 'demo-upcoming', date: day(3), time: '14:00' },
-  ];
+/** Legger en booking (og lukene, hvis den fortsatt opptar tid) i batchen. */
+function addBooking(batch, salon, { id, userId, customerName, customerPhone, date, time, service, staff, status = 'confirmed', note = '', createdAt }) {
+  const key = toKey(date);
+  const startAt = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  startAt.setMinutes(toMinutes(time));
+  const endAt = new Date(startAt.getTime() + service.durationMin * 60000);
+  const slotTimes = Array.from({ length: Math.ceil(service.durationMin / 30) }, (_, index) => toTime(toMinutes(time) + index * 30));
+  const slotIds = slotTimes.map((slotTime) => `${salon.id}_${staff.id}_${key}_${slotTime}`);
+  const holdsSlots = status === 'confirmed' && endAt > new Date();
+
+  batch.set(db.collection('bookings').doc(id), {
+    userId,
+    customerName,
+    customerPhone,
+    note,
+    salonId: salon.id,
+    salonName: salon.data.name,
+    serviceId: service.id,
+    serviceName: service.name,
+    staffId: staff.id,
+    staffName: staff.name,
+    durationMin: service.durationMin,
+    priceNok: service.priceNok,
+    date: key,
+    time,
+    startAt: Timestamp.fromDate(startAt),
+    endAt: Timestamp.fromDate(endAt),
+    cancellableUntil: Timestamp.fromDate(new Date(startAt.getTime() - salon.data.cancellationHours * 3600000)),
+    slotIds: holdsSlots ? slotIds : [],
+    status,
+    ...(status === 'cancelled' ? { cancelledAt: Timestamp.now() } : {}),
+    createdAt: Timestamp.fromDate(createdAt ?? new Date(startAt.getTime() - 6 * 24 * 3600000)),
+  });
+  if (holdsSlots) {
+    slotTimes.forEach((slotTime, index) => {
+      batch.set(db.collection('slots').doc(slotIds[index]), { salonId: salon.id, staffId: staff.id, date: key, time: slotTime, bookingId: id });
+    });
+  }
+}
+
+const DEMO_CUSTOMERS = [
+  ['Kari Nordmann', '+47 000 11 101'],
+  ['Ahmed Khan', '+47 000 11 102'],
+  ['Sofie Lie', '+47 000 11 103'],
+  ['Henrik Dahl', '+47 000 11 104'],
+  ['Nora Bakken', '+47 000 11 105'],
+  ['Emil Strand', '+47 000 11 106'],
+  ['Ingrid Moe', '+47 000 11 107'],
+  ['Yasmin Ali', '+47 000 11 108'],
+];
+
+// Fast mønster per dag: [ansatt, tid, tjeneste]. Noen hoppes over for at dagene skal se ulike ut.
+const DEMO_PATTERN = [
+  [0, '09:30', 0],
+  [0, '11:00', 2],
+  [1, '10:00', 1],
+  [1, '12:00', 0],
+  [1, '15:30', 2],
+];
+
+const DEMO_NOTES = ['', 'Vil gjerne ha litt kortere enn sist.', '', 'Allergisk mot ammoniakk.', ''];
+
+async function seedDemoAccounts(salons) {
+  const customerUid = await ensureUser(DEMO_USER);
+  const ownerUid = await ensureUser(DEMO_OWNER);
+
+  await db.collection('users').doc(customerUid).set({ name: DEMO_USER.displayName, phone: '+47 000 00 000', updatedAt: FieldValue.serverTimestamp() });
+  await db.collection('users').doc(ownerUid).set({ name: DEMO_OWNER.displayName, phone: '+47 000 00 106', updatedAt: FieldValue.serverTimestamp() });
+
+  const salon = salons.find((item) => item.id === DEMO_SALON_ID);
+  await db.collection('salons').doc(salon.id).update({ ownerId: ownerUid });
+
+  const { services, staff, openingHours } = salon.data;
   const batch = db.batch();
-  for (const booking of bookings) {
-    const key = dateKey(booking.date);
-    const [hours, minutes] = booking.time.split(':').map(Number);
-    const startAt = new Date(booking.date.getFullYear(), booking.date.getMonth(), booking.date.getDate(), hours, minutes);
-    const slotTimes = Array.from({ length: Math.ceil(service.durationMin / 30) }, (_, index) => {
-      const total = hours * 60 + minutes + index * 30;
-      return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
-    });
-    const slotIds = slotTimes.map((time) => `${salon.id}_${staff.id}_${key}_${time}`);
-    const upcoming = booking.id === 'demo-upcoming';
 
-    batch.set(db.collection('bookings').doc(booking.id), {
-      userId: uid,
-      customerName: DEMO_USER.displayName,
-      customerPhone: '+47 000 00 000',
-      note: '',
-      salonId: salon.id,
-      salonName: salon.data.name,
-      serviceId: service.id,
-      serviceName: service.name,
-      staffId: staff.id,
-      staffName: staff.name,
-      durationMin: service.durationMin,
-      priceNok: service.priceNok,
-      date: key,
-      time: booking.time,
-      startAt: Timestamp.fromDate(startAt),
-      endAt: Timestamp.fromDate(new Date(startAt.getTime() + service.durationMin * 60000)),
-      cancellableUntil: Timestamp.fromDate(new Date(startAt.getTime() - salon.data.cancellationHours * 3600000)),
-      slotIds: upcoming ? slotIds : [],
-      status: 'confirmed',
-      createdAt: FieldValue.serverTimestamp(),
+  // Testkundens egne timer: en fullført (kan anmeldes) og en kommende (kan flyttes og avbestilles)
+  const own = { userId: customerUid, customerName: DEMO_USER.displayName, customerPhone: '+47 000 00 000', service: services[0], staff: staff[0] };
+  addBooking(batch, salon, { ...own, id: 'demo-past', date: day(-5), time: '11:00' });
+  addBooking(batch, salon, { ...own, id: 'demo-upcoming', date: day(3), time: '14:00' });
+
+  // En uke med timer i kalenderen til salongen
+  const planned = [];
+  for (let offset = -3; offset <= 7; offset++) {
+    const date = day(offset);
+    const hours = openingHours[WEEKDAY_KEYS[date.getDay()]];
+    if (!hours) continue;
+    DEMO_PATTERN.forEach(([staffIndex, time, serviceIndex], index) => {
+      const service = services[serviceIndex];
+      if ((offset + index + 9) % 4 === 0) return;
+      if (toMinutes(time) < toMinutes(hours.open) || toMinutes(time) + service.durationMin > toMinutes(hours.close)) return;
+      planned.push({ offset, index, date, time, service, staff: staff[staffIndex] });
     });
-    if (upcoming) {
-      slotTimes.forEach((time, index) => {
-        batch.set(db.collection('slots').doc(slotIds[index]), {
-          salonId: salon.id,
-          staffId: staff.id,
-          date: key,
-          time,
-          bookingId: booking.id,
-        });
-      });
-    }
   }
+  // Én kunde som ikke møtte i går eller før, én som har avbestilt, og to timer som nettopp ble booket
+  const noShow = planned.filter((item) => item.offset < 0).pop();
+  const cancelled = planned.find((item) => item.offset >= 2);
+  const recent = planned.filter((item) => item.offset >= 1 && item !== cancelled).slice(0, 2);
+
+  planned.forEach((item) => {
+    const [customerName, customerPhone] = DEMO_CUSTOMERS[(item.offset + 3 + item.index * 3) % DEMO_CUSTOMERS.length];
+    addBooking(batch, salon, {
+      id: `demo-${toKey(item.date)}-${item.index}`,
+      userId: `demo-kunde-${slugify(customerName)}`,
+      customerName,
+      customerPhone,
+      date: item.date,
+      time: item.time,
+      service: item.service,
+      staff: item.staff,
+      status: item === noShow ? 'noShow' : item === cancelled ? 'cancelled' : 'confirmed',
+      note: DEMO_NOTES[(item.offset + item.index + 5) % DEMO_NOTES.length],
+      createdAt: recent.includes(item) ? new Date(Date.now() - (recent.indexOf(item) + 1) * 3600000) : undefined,
+    });
+  });
+  const count = planned.length;
+
   await batch.commit();
-  console.log('La inn en fullført og en kommende time for testkontoen.');
+  console.log(`La inn timer for testkunden og ${count} timer i kalenderen til ${salon.data.name} (eier: ${DEMO_OWNER.email}).`);
 }
 
 seedSalons()
-  .then((salons) => (useEmulator ? seedDemoUser(salons) : undefined))
+  .then((salons) => (useEmulator ? seedDemoAccounts(salons) : undefined))
   .catch((error) => {
     console.error(error);
     process.exit(1);

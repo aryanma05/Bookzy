@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/constants/theme';
 import { IconButton } from './icon-button';
@@ -12,14 +12,16 @@ type ScreenHeaderProps = {
   right?: ReactNode;
   closeIcon?: boolean;
   border?: boolean;
+  /** Hvor tilbake-knappen går når det ikke finnes noe å gå tilbake til (f.eks. en lenke åpnet direkte på web). */
+  backTo?: Href;
 };
 
 /** Topplinje for stack-skjermer: tilbake/lukk, tittel og valgfrie handlinger til høyre. */
-export function ScreenHeader({ title, subtitle, right, closeIcon = false, border = true }: ScreenHeaderProps) {
+export function ScreenHeader({ title, subtitle, right, closeIcon = false, border = true, backTo = '/explore' }: ScreenHeaderProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/explore'));
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace(backTo));
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + 6 }, border && styles.border]}>

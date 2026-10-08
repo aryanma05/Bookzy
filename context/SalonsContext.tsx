@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { toSalon, type Salon } from '@/lib/salons';
 
 type SalonsContextType = {
+  /** Salonger som er publisert og synlige for kundene. */
   salons: Salon[];
   loading: boolean;
   error: boolean;
@@ -36,7 +37,8 @@ export function SalonsProvider({ children }: { children: ReactNode }) {
     );
   }, [attempt]);
 
-  const salons = state?.salons ?? [];
+  const all = state?.salons ?? [];
+  const salons = all.filter((salon) => salon.published);
 
   return (
     <SalonsContext.Provider
@@ -48,7 +50,8 @@ export function SalonsProvider({ children }: { children: ReactNode }) {
           setState(null);
           setAttempt((value) => value + 1);
         },
-        getSalon: (id) => salons.find((salon) => salon.id === id),
+        // Finner også upubliserte, så eieren kan se siden sin før den publiseres
+        getSalon: (id) => all.find((salon) => salon.id === id),
       }}
     >
       {children}

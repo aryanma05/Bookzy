@@ -9,6 +9,7 @@ import { formatDay, formatMonthShort, toMinutes, toTime } from '@/lib/schedule';
 
 export function bookingStatus(booking: Booking, now: Date) {
   if (booking.status === 'cancelled') return { label: 'Avbestilt', color: colors.danger, background: colors.dangerSoft };
+  if (booking.status === 'noShow') return { label: 'Møtte ikke', color: colors.warning, background: colors.warningSoft };
   if (booking.endAt.getTime() <= now.getTime()) return { label: 'Fullført', color: colors.textSecondary, background: colors.divider };
   return { label: 'Bekreftet', color: colors.success, background: colors.successSoft };
 }

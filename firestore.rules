@@ -27,20 +27,65 @@ service cloud.firestore {
       return /databases/$(database)/documents/reviews/$(reviewId);
     }
 
+    function isSalonOwner(salonId) {
+      return signedIn() && get(salonPath(salonId)).data.get('ownerId', null) == request.auth.uid;
+    }
+
+    // Feltene eieren selv kan endre. Snitt og antall anmeldelser styres bare av anmeldelsene.
+    function editableSalonFields() {
+      return [
+        'name', 'category', 'description', 'address', 'area', 'phone', 'locationType',
+        'services', 'staff', 'openingHours', 'closedDates', 'cancellationHours', 'published', 'updatedAt'
+      ];
+    }
+
+    function validSalon(data) {
+      return data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+        && data.category is string && data.category.size() <= 40
+        && data.description is string && data.description.size() <= 1000
+        && data.address is string && data.address.size() <= 120
+        && data.area is string && data.area.size() <= 60
+        && data.phone is string && data.phone.size() <= 20
+        && data.locationType in ['home', 'salon']
+        && data.services is list && data.services.size() <= 60
+        && data.staff is list && data.staff.size() >= 1 && data.staff.size() <= 30
+        && data.openingHours is map
+        && data.openingHours.keys().hasOnly(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+        && data.closedDates is list && data.closedDates.size() <= 400
+        && data.cancellationHours is int && data.cancellationHours >= 0 && data.cancellationHours <= 168
+        && data.published is bool
+        && data.updatedAt == request.time;
+    }
+
     // Salonger er offentlige. Seed-scriptet (Admin SDK) går utenom reglene.
-    // Fra appen er eneste tillatte endring å telle med en ny anmeldelse, i samme transaksjon som anmeldelsen.
     match /salons/{salonId} {
       allow read: if true;
 
-      allow update: if signedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingSum', 'reviewCount', 'lastReviewId'])
-        && request.resource.data.reviewCount == resource.data.reviewCount + 1
-        && !exists(reviewPath(request.resource.data.lastReviewId))
-        && getAfter(reviewPath(request.resource.data.lastReviewId)).data.salonId == salonId
-        && request.resource.data.ratingSum
-          == resource.data.ratingSum + getAfter(reviewPath(request.resource.data.lastReviewId)).data.rating;
+      // Hvem som helst kan registrere en bedrift og blir da eier av den.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(editableSalonFields().concat(['ownerId', 'ratingSum', 'reviewCount', 'createdAt']))
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.ratingSum == 0
+        && request.resource.data.reviewCount == 0
+        && request.resource.data.createdAt == request.time
+        && validSalon(request.resource.data);
 
-      allow create, delete: if false;
+      allow update: if
+        // Eieren redigerer salongen sin
+        (signedIn()
+          && resource.data.get('ownerId', null) == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(editableSalonFields())
+          && validSalon(request.resource.data))
+        // En kunde teller med en ny anmeldelse, i samme transaksjon som anmeldelsen
+        || (signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ratingSum', 'reviewCount', 'lastReviewId'])
+          && request.resource.data.reviewCount == resource.data.reviewCount + 1
+          && !exists(reviewPath(request.resource.data.lastReviewId))
+          && getAfter(reviewPath(request.resource.data.lastReviewId)).data.salonId == salonId
+          && request.resource.data.ratingSum
+            == resource.data.ratingSum + getAfter(reviewPath(request.resource.data.lastReviewId)).data.rating);
+
+      allow delete: if false;
     }
 
     // Profil og favoritter – bare for eieren.
@@ -62,9 +107,10 @@ service cloud.firestore {
       }
     }
 
-    // En bruker kan bare se, opprette og avbestille sine egne timer.
+    // Kunden ser, oppretter og avbestiller sine egne timer. Salongen ser alle timer hos seg.
     match /bookings/{bookingId} {
-      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+      allow read: if signedIn()
+        && (resource.data.userId == request.auth.uid || isSalonOwner(resource.data.salonId));
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
@@ -89,20 +135,38 @@ service cloud.firestore {
         // Avbestillingsfristen bestemmes av salongen, ikke av appen
         && request.resource.data.cancellableUntil
           == request.resource.data.startAt - duration.value(get(salonPath(request.resource.data.salonId)).data.cancellationHours, 'h')
+        // Ikke på fridager, verken for hele salongen eller for den ansatte
+        && !(request.resource.data.date in get(salonPath(request.resource.data.salonId)).data.get('closedDates', []))
+        && !((request.resource.data.date + '_' + request.resource.data.staffId)
+          in get(salonPath(request.resource.data.salonId)).data.get('closedDates', []))
         && request.resource.data.slotIds is list
         && request.resource.data.slotIds.size() > 0
         && request.resource.data.slotIds.size() <= 16
         // Bookingen må skrives sammen med lukene sine (samme transaksjon)
         && getAfter(slotPath(request.resource.data.slotIds[0])).data.bookingId == bookingId;
 
-      // Eneste tillatte endring er å avbestille før salongens frist.
-      allow update: if signedIn()
-        && resource.data.userId == request.auth.uid
-        && resource.data.status == 'confirmed'
-        && request.time < resource.data.cancellableUntil
-        && request.resource.data.status == 'cancelled'
-        && request.resource.data.cancelledAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']);
+      allow update: if
+        // Kunden kan bare avbestille, og bare før salongens frist
+        (signedIn()
+          && resource.data.userId == request.auth.uid
+          && resource.data.status == 'confirmed'
+          && request.time < resource.data.cancellableUntil
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.cancelledAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']))
+        // Salongen kan avbestille når som helst
+        || (isSalonOwner(resource.data.salonId)
+          && resource.data.status == 'confirmed'
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.cancelledAt == request.time
+          && request.resource.data.cancelledBy == 'salon'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancelledBy']))
+        // ... og markere at kunden ikke møtte (eller angre det) når timen har startet
+        || (isSalonOwner(resource.data.salonId)
+          && request.time >= resource.data.startAt
+          && ((resource.data.status == 'confirmed' && request.resource.data.status == 'noShow')
+            || (resource.data.status == 'noShow' && request.resource.data.status == 'confirmed'))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
 
       allow delete: if false;
     }
@@ -122,9 +186,10 @@ service cloud.firestore {
         && getAfter(bookingPath(request.resource.data.bookingId)).data.date == request.resource.data.date
         && slotId in getAfter(bookingPath(request.resource.data.bookingId)).data.slotIds;
 
-      // Luker frigjøres bare når eieren avbestiller bookingen i samme operasjon.
+      // Luker frigjøres bare når kunden eller salongen avbestiller bookingen i samme operasjon.
       allow delete: if signedIn()
-        && getAfter(bookingPath(resource.data.bookingId)).data.userId == request.auth.uid
+        && (getAfter(bookingPath(resource.data.bookingId)).data.userId == request.auth.uid
+          || isSalonOwner(resource.data.salonId))
         && getAfter(bookingPath(resource.data.bookingId)).data.status == 'cancelled';
 
       allow update: if false;

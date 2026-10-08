@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,21 +7,15 @@ import { LogoMark } from '@/components/logo';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ListRow } from '@/components/ui/list-row';
+import { SettingsSection as Section } from '@/components/ui/settings-section';
+import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+import { useBusiness } from '@/context/BusinessContext';
 import { useFavorites } from '@/context/FavoritesContext';
 import { showAlert } from '@/lib/alert';
 import { getRemindersEnabled, remindersSupported, setRemindersEnabled } from '@/lib/reminders';
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text variant="overline" style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.card}>{children}</View>
-    </View>
-  );
-}
 
 function useReminderSetting() {
   const [enabled, setEnabled] = useState(false);
@@ -47,11 +41,14 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, profile, displayName, signOut } = useAuth();
   const { favoriteIds } = useFavorites();
+  const { salon, setBusinessMode } = useBusiness();
   const reminders = useReminderSetting();
   const version = Constants.expoConfig?.version ?? '';
 
-  const comingSoon = () =>
-    showAlert('Kommer snart', 'Timeflyt for bedrifter er under utvikling. Ta kontakt hvis du vil være med å teste.');
+  const openBusiness = () => {
+    if (salon) setBusinessMode(true);
+    router.push('/business');
+  };
 
   const confirmSignOut = () =>
     showAlert('Logge ut?', undefined, [
@@ -109,7 +106,6 @@ export default function ProfileScreen() {
                 <Switch
                   value={reminders.enabled}
                   onValueChange={reminders.toggle}
-                  trackColor={{ true: colors.primary, false: colors.border }}
                 />
               ) : undefined
             }
@@ -117,9 +113,15 @@ export default function ProfileScreen() {
         </Section>
       )}
 
+      {salon && (
+        <Section title="Bedrift">
+          <ListRow icon="storefront-outline" label="Gå til bedriftsmodus" value={salon.name} onPress={openBusiness} last />
+        </Section>
+      )}
+
       <Section title="Hjelp">
-        <ListRow icon="help-circle-outline" label="Vanlige spørsmål" onPress={() => router.push('/help')} />
-        <ListRow icon="storefront-outline" label="Timeflyt for bedrifter" onPress={comingSoon} last />
+        <ListRow icon="help-circle-outline" label="Vanlige spørsmål" onPress={() => router.push('/help')} last={!!salon} />
+        {!salon && <ListRow icon="storefront-outline" label="Timeflyt for bedrifter" onPress={openBusiness} last />}
       </Section>
 
       {user && (
@@ -152,8 +154,5 @@ const styles = StyleSheet.create({
   profileText: { flex: 1, gap: 1 },
   guestCard: { flexDirection: 'column', paddingVertical: 28, gap: 8 },
   guestButton: { alignSelf: 'stretch', marginTop: 12 },
-  section: { marginTop: 26 },
-  sectionTitle: { marginBottom: 8, marginLeft: 4 },
-  card: { borderRadius: radius.lg, overflow: 'hidden', backgroundColor: colors.surface, ...shadows.card },
   version: { marginTop: 28 },
 });

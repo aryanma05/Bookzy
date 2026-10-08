@@ -19,10 +19,15 @@ export type StaffMember = {
 
 export type GeoPoint = { lat: number; lng: number };
 
+/** Hjemmesalong eller vanlig salong/studio. */
+export type LocationType = 'home' | 'salon';
+
 export type Salon = {
   id: string;
+  ownerId: string | null;
   name: string;
   category: string;
+  locationType: LocationType;
   address: string;
   area: string;
   description: string;
@@ -36,7 +41,11 @@ export type Salon = {
   services: Service[];
   staff: StaffMember[];
   openingHours: OpeningHours;
+  /** «2026-10-12» = hele salongen er stengt, «2026-10-12_maria» = bare Maria har fri. */
+  closedDates: string[];
   cancellationHours: number;
+  /** Nye bedrifter er skjult for kundene til eieren publiserer siden. */
+  published: boolean;
 };
 
 export function unsplash(photoId: string, width = 800) {
@@ -51,6 +60,21 @@ export const CATEGORIES: { name: string; icon: keyof typeof Ionicons.glyphMap; i
   { name: 'Hudpleie', icon: 'sparkles-outline', image: unsplash('1570172619644-dfd03ed5d881', 300) },
   { name: 'Voksing', icon: 'flower-outline', image: unsplash('1757689373248-a6cd07328ba5', 300) },
 ];
+
+export const LOCATION_TYPES: { value: LocationType; label: string; description: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: 'home', label: 'Hjemme hos meg', description: 'Kundene kommer hjem til deg', icon: 'home-outline' },
+  { value: 'salon', label: 'Salong eller studio', description: 'Eget lokale eller leid stol', icon: 'storefront-outline' },
+];
+
+/** Forslag til grupper i tjenestelisten, ut fra hva slags bedrift det er. */
+export const SERVICE_GROUPS: Record<string, string[]> = {
+  Frisør: ['Klipp', 'Farge', 'Styling'],
+  Barber: ['Klipp', 'Skjegg'],
+  Negler: ['Manikyr', 'Pedikyr', 'Negledesign'],
+  Massasje: ['Massasje'],
+  Hudpleie: ['Ansikt', 'Øyne og bryn'],
+  Voksing: ['Kropp', 'Ansikt'],
+};
 
 function isService(value: unknown): value is Service {
   const service = value as Partial<Service> | null;
@@ -76,8 +100,10 @@ export function toSalon(id: string, data: DocumentData): Salon {
 
   return {
     id,
+    ownerId: typeof data.ownerId === 'string' ? data.ownerId : null,
     name: data.name ?? 'Uten navn',
     category: data.category ?? '',
+    locationType: data.locationType === 'home' ? 'home' : 'salon',
     address: data.address ?? '',
     area: data.area ?? '',
     description: data.description ?? '',
@@ -96,8 +122,34 @@ export function toSalon(id: string, data: DocumentData): Salon {
       : [],
     staff: staff.map((member) => ({ ...member, title: member.title ?? '' })),
     openingHours: data.openingHours ?? {},
+    closedDates: Array.isArray(data.closedDates) ? data.closedDates.filter((key: unknown) => typeof key === 'string') : [],
     cancellationHours: typeof data.cancellationHours === 'number' ? data.cancellationHours : 24,
+    // Salongene fra før feltet fantes, er synlige
+    published: data.published !== false,
   };
+}
+
+/** «Negler hos Lina» → «negler-hos-lina». Samme regler som i seed-scriptet. */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/æ/g, 'ae')
+    .replace(/ø/g, 'oe')
+    .replace(/å/g, 'aa')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Kort tilfeldig ID til tjenester og ansatte. Brukes i luke-ID-er, så den har aldri understrek. */
+export function shortId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/** Adressen, eller bare området for hjemmesalonger som ikke vil vise hjemmeadressen. */
+export function displayAddress(salon: Salon): string {
+  return salon.address || salon.area;
 }
 
 export function groupServices(services: Service[]): { category: string; services: Service[] }[] {
