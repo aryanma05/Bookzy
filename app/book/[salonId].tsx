@@ -21,6 +21,7 @@ import {
   fromDateKey,
   getAvailableTimes,
   hoursForDate,
+  isDayOff,
   toDateKey,
   upcomingDates,
 } from '@/lib/schedule';
@@ -45,7 +46,7 @@ export default function ChooseTimeScreen() {
   const [chosenTime, setChosenTime] = useState<string | null>(null);
 
   const dates = upcomingDates(now, DAYS_AHEAD);
-  const firstOpen = salon ? dates.find((date) => hoursForDate(salon.openingHours, date)) : undefined;
+  const firstOpen = salon ? dates.find((date) => hoursForDate(salon.openingHours, date, salon.closedDates)) : undefined;
   const dateKey = chosenDate ?? toDateKey(firstOpen ?? now);
   const date = fromDateKey(dateKey);
   const { taken, error } = useTakenSlots(salon?.id ?? null, dateKey);
@@ -72,6 +73,7 @@ export default function ChooseTimeScreen() {
     taken !== null
       ? getAvailableTimes({
           openingHours: salon.openingHours,
+          closedDates: salon.closedDates,
           date,
           durationMin: service.durationMin,
           staffIds,
@@ -80,7 +82,9 @@ export default function ChooseTimeScreen() {
         })
       : [];
   const time = chosenTime && available.some((item) => item.time === chosenTime) ? chosenTime : null;
-  const isClosed = !hoursForDate(salon.openingHours, date);
+  const isClosed = !hoursForDate(salon.openingHours, date, salon.closedDates);
+  const chosenStaff = staffId ? salon.staff.find((member) => member.id === staffId) : undefined;
+  const chosenStaffOff = !!chosenStaff && isDayOff(salon.closedDates, dateKey, chosenStaff.id);
 
   const goToNextDay = () => {
     setChosenDate(toDateKey(addDays(date, 1)));
@@ -138,7 +142,7 @@ export default function ChooseTimeScreen() {
           <DateStrip
             dates={dates}
             selectedKey={dateKey}
-            isClosed={(day) => !hoursForDate(salon.openingHours, day)}
+            isClosed={(day) => !hoursForDate(salon.openingHours, day, salon.closedDates)}
             onSelect={(key) => {
               setChosenDate(key);
               setChosenTime(null);
@@ -162,7 +166,7 @@ export default function ChooseTimeScreen() {
           ) : available.length === 0 ? (
             <EmptyState
               icon="calendar-clear-outline"
-              title="Fullt denne dagen"
+              title={chosenStaff && chosenStaffOff ? `${chosenStaff.name.split(' ')[0]} har fri denne dagen` : 'Fullt denne dagen'}
               message={staffId ? 'Prøv en annen dag, eller velg «Hvem som helst».' : 'Prøv en annen dag.'}
               actionLabel="Se neste dag"
               onAction={goToNextDay}

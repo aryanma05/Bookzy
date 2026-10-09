@@ -18,10 +18,13 @@ import { slotId, slotTimesFor, toStartDate } from '@/lib/schedule';
 import type { Salon, Service } from '@/lib/salons';
 import { useAuth } from './AuthContext';
 
-export type BookingStatus = 'confirmed' | 'cancelled';
+export type BookingStatus = 'confirmed' | 'cancelled' | 'noShow';
 
 export type Booking = {
   id: string;
+  userId: string;
+  customerName: string;
+  customerPhone: string;
   salonId: string;
   salonName: string;
   serviceId: string;
@@ -38,6 +41,9 @@ export type Booking = {
   cancellableUntil: Date;
   slotIds: string[];
   status: BookingStatus;
+  /** Satt når salongen avbestilte. Kunden avbestiller uten å sette feltet. */
+  cancelledBy: 'salon' | null;
+  createdAt: Date | null;
 };
 
 export type NewBooking = {
@@ -68,9 +74,12 @@ const BookingContext = createContext<BookingContextType | undefined>(undefined);
 
 const toDate = (value: unknown) => (value instanceof Timestamp ? value.toDate() : new Date(0));
 
-function toBooking(id: string, data: DocumentData): Booking {
+export function toBooking(id: string, data: DocumentData): Booking {
   return {
     id,
+    userId: data.userId ?? '',
+    customerName: data.customerName ?? '',
+    customerPhone: data.customerPhone ?? '',
     salonId: data.salonId,
     salonName: data.salonName,
     serviceId: data.serviceId ?? '',
@@ -87,6 +96,8 @@ function toBooking(id: string, data: DocumentData): Booking {
     cancellableUntil: data.cancellableUntil ? toDate(data.cancellableUntil) : toDate(data.startAt),
     slotIds: data.slotIds ?? [],
     status: data.status,
+    cancelledBy: data.cancelledBy === 'salon' ? 'salon' : null,
+    createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : null,
   };
 }
 
@@ -111,6 +122,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     return onSnapshot(
       bookingsQuery,
       (result) => {
+        // Avbestiller salongen, skal ikke kunden få påminnelse om timen
+        result.docChanges().forEach((change) => {
+          if (change.type === 'modified' && change.doc.data().status === 'cancelled') cancelReminder(change.doc.id);
+        });
         const bookings = result.docs
           .map((booking) => toBooking(booking.id, booking.data()))
           .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());

@@ -1,8 +1,8 @@
 import { Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { FavoriteButton } from '@/components/favorite-button';
+import { SalonPhoto } from '@/components/salon-photo';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
@@ -45,12 +45,7 @@ export function SalonCard({ salon, width = 240 }: { salon: Salon; width?: number
       accessibilityLabel={salon.name}
     >
       <View>
-        <Image
-          source={salon.imageUrl ? { uri: salon.imageUrl } : undefined}
-          style={[styles.cardImage, { height: width * 0.62 }]}
-          contentFit="cover"
-          transition={250}
-        />
+        <SalonPhoto salon={salon} style={[styles.cardImage, { height: width * 0.62 }]} iconSize={36} />
         <View style={styles.favorite}>
           <FavoriteButton salonId={salon.id} size={34} />
         </View>
@@ -80,12 +75,7 @@ export function SalonRow({ salon }: { salon: Salon }) {
       accessibilityRole={cardRole}
       accessibilityLabel={salon.name}
     >
-      <Image
-        source={salon.imageUrl ? { uri: salon.imageUrl } : undefined}
-        style={styles.rowImage}
-        contentFit="cover"
-        transition={250}
-      />
+      <SalonPhoto salon={salon} style={styles.rowImage} />
       <View style={styles.rowBody}>
         <Text variant="subheading" numberOfLines={1} style={styles.name}>{salon.name}</Text>
         <RatingLine salon={salon} />

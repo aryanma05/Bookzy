@@ -21,6 +21,8 @@ import { Logo } from '@/components/logo';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { colors, fonts, radius } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
+import { useBusiness } from '@/context/BusinessContext';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { haptics } from '@/lib/haptics';
 import { unsplash } from '@/lib/salons';
@@ -42,6 +44,13 @@ const SLIDES = [
 
 export default function IndexScreen() {
   const { hasSeenOnboarding } = useOnboarding();
+  const { user } = useAuth();
+  const { businessMode } = useBusiness();
+
+  // Salongeiere som var i bedriftsmodus sist, kommer rett til kalenderen
+  if (user && businessMode) {
+    return <Redirect href="/business" />;
+  }
 
   // Onboarding vises bare første gang appen åpnes
   if (hasSeenOnboarding) {

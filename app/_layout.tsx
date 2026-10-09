@@ -15,6 +15,7 @@ import {
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { BookingProvider } from '@/context/BookingContext';
+import { BusinessProvider, useBusiness } from '@/context/BusinessContext';
 import { FavoritesProvider } from '@/context/FavoritesContext';
 import { LocationProvider } from '@/context/LocationContext';
 import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
@@ -40,7 +41,9 @@ export default function RootLayout() {
           <SalonsProvider>
             <FavoritesProvider>
               <BookingProvider>
-                <RootNavigator fontsReady={fontsLoaded || !!fontError} />
+                <BusinessProvider>
+                  <RootNavigator fontsReady={fontsLoaded || !!fontError} />
+                </BusinessProvider>
               </BookingProvider>
             </FavoritesProvider>
           </SalonsProvider>
@@ -53,7 +56,8 @@ export default function RootLayout() {
 function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
   const { initializing } = useAuth();
   const { ready: onboardingReady } = useOnboarding();
-  const isReady = fontsReady && !initializing && onboardingReady;
+  const { modeReady } = useBusiness();
+  const isReady = fontsReady && !initializing && onboardingReady && modeReady;
 
   useEffect(() => {
     if (isReady) {
@@ -73,6 +77,7 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="index" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="business" options={{ animation: 'fade' }} />
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
         <Stack.Screen name="review/[bookingId]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="book/success" options={{ animation: 'fade', gestureEnabled: false }} />

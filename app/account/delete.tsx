@@ -9,6 +9,7 @@ import { TextField } from '@/components/ui/text-field';
 import { colors, radius } from '@/constants/theme';
 import { authErrorMessage, useAuth } from '@/context/AuthContext';
 import { canCancel, useBookings } from '@/context/BookingContext';
+import { useBusiness } from '@/context/BusinessContext';
 import { useNow } from '@/hooks/use-now';
 import { showAlert } from '@/lib/alert';
 
@@ -23,9 +24,13 @@ export default function DeleteAccountScreen() {
   const now = useNow();
   const { reauthenticate, deleteAccount } = useAuth();
   const { bookings, cancelBooking } = useBookings();
+  const { salon, saveSalon } = useBusiness();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const consequences = salon
+    ? [...CONSEQUENCES, `Siden til ${salon.name} skjules, så ingen kan booke nye timer der.`]
+    : CONSEQUENCES;
 
   const remove = async () => {
     if (!password || deleting) return;
@@ -33,6 +38,8 @@ export default function DeleteAccountScreen() {
     setDeleting(true);
     try {
       await reauthenticate(password);
+      // Uten eier er det ingen som ser bookingene, så siden skjules
+      if (salon?.published) await saveSalon({ published: false });
       for (const booking of bookings.filter((item) => canCancel(item, now))) {
         await cancelBooking(booking);
       }
@@ -58,7 +65,7 @@ export default function DeleteAccountScreen() {
           </View>
           <Text variant="title">Er du sikker?</Text>
           <View style={styles.list}>
-            {CONSEQUENCES.map((text) => (
+            {consequences.map((text) => (
               <View key={text} style={styles.item}>
                 <Ionicons name="ellipse" size={6} color={colors.textSecondary} style={styles.bullet} />
                 <Text variant="body" color={colors.textSecondary} style={styles.flex}>{text}</Text>

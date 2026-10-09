@@ -17,6 +17,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FavoriteButton } from '@/components/favorite-button';
 import { RatingSummary, ReviewItem } from '@/components/review-item';
+import { SalonPhoto } from '@/components/salon-photo';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -38,6 +39,7 @@ import {
   formatDuration,
   formatPrice,
   formatRating,
+  displayAddress,
   groupServices,
   type Salon,
 } from '@/lib/salons';
@@ -128,7 +130,7 @@ function SalonDetails({ salon }: { salon: Salon }) {
     ],
   }));
 
-  const status = openStatus(salon.openingHours, now);
+  const status = openStatus(salon.openingHours, now, salon.closedDates);
   const distance = coords && salon.location ? formatDistance(distanceKm(coords, salon.location)) : null;
   const photos = salon.photos.length > 0 ? salon.photos : salon.imageUrl ? [salon.imageUrl] : [];
   const today = weekdayKey(now);
@@ -151,6 +153,7 @@ function SalonDetails({ salon }: { salon: Salon }) {
             {photos.map((uri) => (
               <Image key={uri} source={{ uri }} style={{ width, height: IMAGE_HEIGHT }} contentFit="cover" transition={250} />
             ))}
+            {photos.length === 0 && <SalonPhoto salon={salon} style={{ width, height: IMAGE_HEIGHT }} iconSize={64} />}
           </ScrollView>
           {photos.length > 1 && (
             <View style={styles.photoCounter}>
@@ -160,7 +163,9 @@ function SalonDetails({ salon }: { salon: Salon }) {
         </Animated.View>
 
         <View style={styles.body}>
-          <Text variant="overline" color={colors.primary}>{salon.category}</Text>
+          <Text variant="overline" color={colors.primary}>
+            {salon.locationType === 'home' ? `${salon.category} · Hjemmesalong` : salon.category}
+          </Text>
           <Text variant="title" style={styles.name}>{salon.name}</Text>
 
           <PressableScale scaleTo={0.98} style={styles.metaRow} onPress={() => setTab('reviews')}>
@@ -178,7 +183,7 @@ function SalonDetails({ salon }: { salon: Salon }) {
           <View style={styles.metaRow}>
             <Ionicons name="location-outline" size={16} color={colors.textMuted} />
             <Text variant="caption" style={styles.metaText}>
-              {salon.address}{distance ? ` · ${distance}` : ''}
+              {displayAddress(salon)}{distance ? ` · ${distance}` : ''}
             </Text>
           </View>
           <View style={styles.metaRow}>
@@ -188,7 +193,9 @@ function SalonDetails({ salon }: { salon: Salon }) {
 
           <View style={styles.actions}>
             {salon.phone && <QuickAction icon="call-outline" label="Ring" onPress={() => callSalon(salon)} />}
-            <QuickAction icon="navigate-outline" label="Veibeskrivelse" onPress={() => openDirections(salon)} />
+            {salon.address ? (
+              <QuickAction icon="navigate-outline" label="Veibeskrivelse" onPress={() => openDirections(salon)} />
+            ) : null}
             <QuickAction icon="share-outline" label="Del" onPress={() => shareSalon(salon)} />
           </View>
 
@@ -289,8 +296,16 @@ function SalonDetails({ salon }: { salon: Salon }) {
 
               <View style={styles.aboutBlock}>
                 <Text variant="subheading">Adresse</Text>
-                <Text variant="body" color={colors.textSecondary}>{salon.address}</Text>
-                <Button title="Vis i kart" variant="outline" size="md" icon="map-outline" onPress={() => openDirections(salon)} />
+                {salon.address ? (
+                  <>
+                    <Text variant="body" color={colors.textSecondary}>{salon.address}</Text>
+                    <Button title="Vis i kart" variant="outline" size="md" icon="map-outline" onPress={() => openDirections(salon)} />
+                  </>
+                ) : (
+                  <Text variant="body" color={colors.textSecondary}>
+                    {salon.area}. Dette er en hjemmesalong – du får nøyaktig adresse av {salon.name}.
+                  </Text>
+                )}
               </View>
             </View>
           )}

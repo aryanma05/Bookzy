@@ -31,6 +31,11 @@ const QUESTIONS = [
       'I appen får du et varsel dagen før (eller to timer før hvis du booker samme dag). Du kan slå påminnelser av og på under Profil.',
   },
   {
+    question: 'Jeg har en salong. Hvordan kommer jeg med?',
+    answer:
+      'Gå til Profil og velg «Timeflyt for bedrifter». Der registrerer du bedriften, legger inn tjenester og åpningstider og publiserer siden. Kalenderen fungerer både på mobilen og på PC.',
+  },
+  {
     question: 'Hvem kan se anmeldelsen min?',
     answer: 'Anmeldelser er offentlige og vises med fornavnet ditt og forbokstaven i etternavnet. Du kan bare anmelde timer du faktisk har hatt.',
   },

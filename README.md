@@ -16,6 +16,18 @@ The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and th
 - Local reminders the day before an appointment (iOS/Android)
 - Account: sign up, sign in, password reset, edit profile, delete account
 
+### For businesses
+
+Timeflyt is built first and foremost for home-based salons, solo technicians and small businesses, with room to grow into larger salons. Business mode lives in the same app (Profile → *Timeflyt for bedrifter*) and works on the web, so the salon can use it on a PC.
+
+- Register a business in one form: name, category, home salon or salon/studio, area and contact info. The owner becomes the first person customers can book with, so a solo business doesn't need to set up staff at all
+- Home salons can leave the address empty; customers then only see the area
+- New businesses are hidden from customers until they have added services and choose to publish
+- Calendar with day and week views. On a phone the week is a list per day; on a wide screen it's a seven-day grid and the menu moves to a sidebar. With several staff members, the day view has one column per person and can be filtered
+- Appointment details with the customer's name, phone (call/SMS), note and history at the salon (number of visits and no-shows)
+- The salon can cancel an appointment at any time (the slot is freed and the customer sees that the salon cancelled), and mark "didn't show up" once it has started
+- Services (name, group, duration, price, description), staff, opening hours, days off and holidays for the whole salon or one person, cancellation deadline and profile
+
 ## Getting started
 
 ```bash
@@ -30,8 +42,8 @@ Expo Go works for most things. Reminders and location are best tested in a devel
 ## Firebase setup (one time)
 
 1. **Enable email sign-in:** Firebase Console → Authentication → Sign-in method → enable *Email/Password*.
-2. **Deploy security rules and indexes:** `npm run deploy:firestore` (requires `npm i -g firebase-tools` and `firebase login`). The reviews query needs the composite index in `firestore.indexes.json`; it takes a few minutes to build after deploying.
-3. **Add sample salons:** download a service account key (Project settings → Service accounts → Generate new private key), save it as `serviceAccountKey.json` in the project root (it is git-ignored) and run `npm run seed`. This replaces any salons in the old data format.
+2. **Deploy security rules and indexes:** `npm run deploy:firestore` (requires `npm i -g firebase-tools` and `firebase login`). The reviews list and the business calendar need the composite indexes in `firestore.indexes.json`; they take a few minutes to build after deploying.
+3. **Add sample salons:** download a service account key (Project settings → Service accounts → Generate new private key), save it as `serviceAccountKey.json` in the project root (it is git-ignored) and run `npm run seed`. This replaces the sample salons; salons registered by businesses in the app are never touched.
 
 ## Local development with emulators
 
@@ -44,7 +56,7 @@ npm run seed:emulator    # sample salons, reviews and a test account with two ap
 
 Then create `.env.local` with `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` and restart Expo. On a physical phone, also set `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST` to your computer's IP address (Android emulator: `10.0.2.2`). Delete `.env.local` to go back to the real database.
 
-The test account's email and password are defined in `scripts/seedSalons.js`.
+This creates two test accounts (email and password are in `scripts/seedSalons.js`): a customer with two appointments, and the owner of *Salong Nord* with a week of appointments in the calendar, including a no-show and a cancellation.
 
 ## Scripts
 
@@ -62,13 +74,15 @@ The test account's email and password are defined in `scripts/seedSalons.js`.
 app/                   screens (Expo Router)
   index.tsx            onboarding (first launch only)
   (tabs)/              Home, Search, Appointments, Profile
+  business/            business mode: start page, registration, calendar, services,
+                       salon settings, appointment details, hours, days off, staff
   salon/[id].tsx       salon page
   book/                choose time → confirm → success
   booking/[id].tsx     appointment details
   review/, account/    review, edit profile, delete account
-components/            shared UI (components/ui is the design system)
+components/            shared UI (components/ui is the design system, components/business is used by business mode)
 constants/theme.ts     colours, fonts, radii and shadows
-context/               auth, salons, bookings, favourites, location, onboarding
+context/               auth, salons, bookings, business, favourites, location, onboarding
 hooks/                 small data hooks
 lib/                   Firebase setup, types, scheduling and formatting helpers
 scripts/               seed and test scripts
@@ -77,9 +91,9 @@ tests/                 security rules tests
 
 ## Data model (Firestore)
 
-- `salons/{id}` — name, category, address, photos, location, services, staff, opening hours, cancellation deadline and rating totals. Read-only from the app, except for updating rating totals together with a new review.
-- `bookings/{id}` — one appointment. Only the owner can read it, and the only allowed change is cancelling before the salon's deadline.
-- `slots/{salonId_staffId_date_time}` — one 30-minute slot. Created in the same transaction as the booking and can never be overwritten, so two customers can't get the same time. Deleted when the booking is cancelled.
+- `salons/{id}` — name, category, home salon or salon, address, photos, location, services, staff, opening hours, days off (`closedDates`: `2026-10-12` for the whole salon, `2026-10-12_staffId` for one person), cancellation deadline, `published` and rating totals. Anyone signed in can create a salon and becomes its `ownerId`. Only the owner can edit it, and never the rating totals, which are only updated together with a new review.
+- `bookings/{id}` — one appointment. The customer can read it and cancel before the salon's deadline. The salon owner can read all appointments at the salon, cancel at any time (`cancelledBy: 'salon'`) and mark `noShow` once the appointment has started. Bookings on days off are rejected by the rules.
+- `slots/{salonId_staffId_date_time}` — one 30-minute slot. Created in the same transaction as the booking and can never be overwritten, so two customers can't get the same time. Deleted when the customer or the salon cancels.
 - `reviews/{bookingId}` — public. One per completed booking, written by the person who had the appointment.
 - `users/{uid}` and `users/{uid}/favorites/{salonId}` — profile and favourites, private to the user.
 

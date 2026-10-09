@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { bookingStatus } from '@/components/booking-card';
+import { SalonPhoto } from '@/components/salon-photo';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -18,7 +18,7 @@ import { useReviewedBookings } from '@/hooks/use-reviewed-bookings';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
 import { callSalon, openDirections } from '@/lib/links';
-import { formatCancellationPolicy, formatDuration, formatPrice } from '@/lib/salons';
+import { displayAddress, formatCancellationPolicy, formatDuration, formatPrice } from '@/lib/salons';
 import { formatDay, formatShortDate, toMinutes, toTime } from '@/lib/schedule';
 
 function Row({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
@@ -112,14 +112,10 @@ export default function BookingDetailsScreen() {
       <ScreenHeader title="Timen din" />
       <ScrollView contentContainerStyle={styles.content}>
         <PressableScale style={styles.salonCard} scaleTo={0.98} onPress={() => router.push(`/salon/${booking.salonId}`)}>
-          <Image
-            source={salon?.imageUrl ? { uri: salon.imageUrl } : undefined}
-            style={styles.salonImage}
-            contentFit="cover"
-          />
+          {salon ? <SalonPhoto salon={salon} style={styles.salonImage} iconSize={24} /> : <View style={styles.salonImage} />}
           <View style={styles.salonText}>
             <Text variant="heading" numberOfLines={1}>{booking.salonName}</Text>
-            {salon && <Text variant="caption" numberOfLines={1}>{salon.address}</Text>}
+            {salon && <Text variant="caption" numberOfLines={1}>{displayAddress(salon)}</Text>}
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </PressableScale>
@@ -167,7 +163,7 @@ export default function BookingDetailsScreen() {
               </View>
             )}
             <View style={styles.buttonRow}>
-              {salon && <Button title="Veibeskrivelse" variant="outline" size="md" icon="navigate-outline" onPress={() => openDirections(salon)} style={styles.flex} />}
+              {salon?.address ? <Button title="Veibeskrivelse" variant="outline" size="md" icon="navigate-outline" onPress={() => openDirections(salon)} style={styles.flex} /> : null}
               {salon?.phone && <Button title="Ring" variant="outline" size="md" icon="call-outline" onPress={() => callSalon(salon)} style={styles.flex} />}
             </View>
           </View>
@@ -189,6 +185,26 @@ export default function BookingDetailsScreen() {
 
         {booking.status === 'cancelled' && (
           <View style={styles.actions}>
+            {booking.cancelledBy === 'salon' && (
+              <View style={styles.notice}>
+                <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+                <Text variant="caption" color={colors.text} style={styles.flex}>
+                  {booking.salonName} avbestilte denne timen. Ta kontakt med dem hvis du lurer på noe.
+                </Text>
+              </View>
+            )}
+            <Button title="Book ny time" variant="secondary" onPress={bookAgain} />
+          </View>
+        )}
+
+        {booking.status === 'noShow' && (
+          <View style={styles.actions}>
+            <View style={styles.notice}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+              <Text variant="caption" color={colors.text} style={styles.flex}>
+                Salongen har registrert at du ikke kom til denne timen. Ta kontakt med dem hvis det ikke stemmer.
+              </Text>
+            </View>
             <Button title="Book ny time" variant="secondary" onPress={bookAgain} />
           </View>
         )}

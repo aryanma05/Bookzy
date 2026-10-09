@@ -69,7 +69,17 @@ export function weekdayKey(date: Date): WeekdayKey {
   return WEEKDAY_KEYS[date.getDay()];
 }
 
-export function hoursForDate(openingHours: OpeningHours, date: Date): DayHours | null {
+/** Fridager lagres som «2026-10-12» (hele salongen) eller «2026-10-12_maria» (bare én ansatt). */
+export function dayOffKey(dateKey: string, staffId?: string | null): string {
+  return staffId ? `${dateKey}_${staffId}` : dateKey;
+}
+
+export function isDayOff(closedDates: string[], dateKey: string, staffId?: string): boolean {
+  return closedDates.includes(dateKey) || (!!staffId && closedDates.includes(dayOffKey(dateKey, staffId)));
+}
+
+export function hoursForDate(openingHours: OpeningHours, date: Date, closedDates: string[] = []): DayHours | null {
+  if (closedDates.includes(toDateKey(date))) return null;
   return openingHours[weekdayKey(date)] ?? null;
 }
 
@@ -93,20 +103,23 @@ export type AvailableTime = { time: string; staffIds: string[] };
  */
 export function getAvailableTimes({
   openingHours,
+  closedDates = [],
   date,
   durationMin,
-  staffIds,
+  staffIds: requestedStaffIds,
   taken,
   now,
 }: {
   openingHours: OpeningHours;
+  closedDates?: string[];
   date: Date;
   durationMin: number;
   staffIds: string[];
   taken: TakenSlots;
   now: Date;
 }): AvailableTime[] {
-  const hours = hoursForDate(openingHours, date);
+  const hours = hoursForDate(openingHours, date, closedDates);
+  const staffIds = requestedStaffIds.filter((staffId) => !isDayOff(closedDates, toDateKey(date), staffId));
   if (!hours || staffIds.length === 0) return [];
 
   const close = toMinutes(hours.close);
@@ -143,9 +156,9 @@ export function groupByPeriod<T extends { time: string }>(items: T[]) {
 }
 
 /** «Åpent til 18:00», «Stengt · åpner 10:00», «Stengt · åpner mandag 09:00». */
-export function openStatus(openingHours: OpeningHours, now: Date): { isOpen: boolean; text: string } {
+export function openStatus(openingHours: OpeningHours, now: Date, closedDates: string[] = []): { isOpen: boolean; text: string } {
   const minutes = now.getHours() * 60 + now.getMinutes();
-  const today = hoursForDate(openingHours, now);
+  const today = hoursForDate(openingHours, now, closedDates);
 
   if (today && minutes >= toMinutes(today.open) && minutes < toMinutes(today.close)) {
     return { isOpen: true, text: `Åpent til ${today.close}` };
@@ -155,7 +168,7 @@ export function openStatus(openingHours: OpeningHours, now: Date): { isOpen: boo
   }
   for (let offset = 1; offset <= 7; offset++) {
     const day = addDays(now, offset);
-    const hours = hoursForDate(openingHours, day);
+    const hours = hoursForDate(openingHours, day, closedDates);
     if (hours) {
       const when = offset === 1 ? 'i morgen' : WEEKDAYS_LONG[day.getDay()];
       return { isOpen: false, text: `Stengt · åpner ${when} ${hours.open}` };
@@ -194,4 +207,38 @@ export function formatDay(date: Date, now: Date): string {
 /** «12. august 2026» – brukes på anmeldelser. */
 export function formatFullDate(date: Date): string {
   return `${date.getDate()}. ${MONTHS_LONG[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/** Mandagen i uken datoen ligger i. */
+export function startOfWeek(date: Date): Date {
+  return addDays(date, -((date.getDay() + 6) % 7));
+}
+
+/** «12.–18. okt», «29. sep – 5. okt» eller «Tir 7. okt» når det bare er én dag. */
+export function formatDateRange(from: Date, to: Date): string {
+  if (toDateKey(from) === toDateKey(to)) return formatShortDate(from);
+  if (from.getMonth() === to.getMonth()) {
+    return `${from.getDate()}.–${to.getDate()}. ${MONTHS_SHORT[to.getMonth()]}`;
+  }
+  return `${from.getDate()}. ${MONTHS_SHORT[from.getMonth()]} – ${to.getDate()}. ${MONTHS_SHORT[to.getMonth()]}`;
+}
+
+export function formatWeekRange(monday: Date): string {
+  return formatDateRange(monday, addDays(monday, 6));
+}
+
+/** Alle klokkeslett med `step` minutters mellomrom gjennom døgnet. */
+export function timesOfDay(step = SLOT_INTERVAL_MIN): string[] {
+  return Array.from({ length: (24 * 60) / step }, (_, index) => toTime(index * step));
+}
+
+export function formatTimeRange(time: string, durationMin: number): string {
+  return `${time}–${toTime(toMinutes(time) + durationMin)}`;
+}
+
+/** Ukenummer etter ISO 8601, slik det brukes i norske kalendere. */
+export function weekNumber(date: Date): number {
+  const thursday = addDays(startOfWeek(date), 3);
+  const firstThursday = addDays(startOfWeek(new Date(thursday.getFullYear(), 0, 4)), 3);
+  return 1 + Math.round((thursday.getTime() - firstThursday.getTime()) / (7 * 24 * 60 * 60 * 1000));
 }
