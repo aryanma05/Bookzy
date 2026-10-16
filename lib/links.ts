@@ -44,7 +44,7 @@ export async function shareSalon(salon: Salon) {
   const link = salonLink(salon.id);
   const message = link
     ? `${salon.name} – ${salon.address}. Book time her: ${link}`
-    : `${salon.name} – ${salon.address}. Book time i Timeflyt-appen.`;
+    : `${salon.name} – ${salon.address}. Book time i Bookzy-appen.`;
   try {
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
