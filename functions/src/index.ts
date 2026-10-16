@@ -1,5 +1,5 @@
 // Varsler til salong og kunde. Kjører på serveren, så de virker uansett om appen er åpen,
-// og også for dem som bruker Timeflyt på nettet.
+// og også for dem som bruker Bookzy på nettet.
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { logger, setGlobalOptions } from 'firebase-functions';

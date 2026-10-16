@@ -46,7 +46,7 @@ export default function DeleteAccountScreen() {
       await deleteAccount();
       router.dismissAll();
       router.replace('/explore');
-      showAlert('Kontoen er slettet', 'Takk for at du brukte Timeflyt.');
+      showAlert('Kontoen er slettet', 'Takk for at du brukte Bookzy.');
     } catch (deleteError) {
       console.error('Kunne ikke slette konto:', deleteError);
       setError(authErrorMessage(deleteError));

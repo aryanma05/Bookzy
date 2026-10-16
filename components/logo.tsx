@@ -9,7 +9,7 @@ export function LogoMark({ height = 28, white = false }: { height?: number; whit
       source={white ? require('@/assets/images/logo-mark-white.png') : require('@/assets/images/logo-mark.png')}
       style={{ width: height * MARK_RATIO, height }}
       contentFit="contain"
-      accessibilityLabel="Timeflyt"
+      accessibilityLabel="Bookzy"
     />
   );
 }
@@ -20,7 +20,7 @@ export function Logo({ height = 120, white = false }: { height?: number; white?:
       source={white ? require('@/assets/images/logo-white.png') : require('@/assets/images/logo.png')}
       style={{ width: height * LOGO_RATIO, height }}
       contentFit="contain"
-      accessibilityLabel="Timeflyt"
+      accessibilityLabel="Bookzy"
     />
   );
 }

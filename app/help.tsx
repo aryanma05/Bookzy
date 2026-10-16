@@ -38,7 +38,7 @@ const QUESTIONS = [
   {
     question: 'Jeg har en salong. Hvordan kommer jeg med?',
     answer:
-      'Gå til Profil og velg «Timeflyt for bedrifter». Der registrerer du bedriften, legger inn tjenester og åpningstider og publiserer siden. Kalenderen fungerer både på mobilen og på PC.',
+      'Gå til Profil og velg «Bookzy for bedrifter». Der registrerer du bedriften, legger inn tjenester og åpningstider og publiserer siden. Kalenderen fungerer både på mobilen og på PC.',
   },
   {
     question: 'Hvordan får salongen vite om nye bookinger?',

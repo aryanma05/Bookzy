@@ -9,9 +9,9 @@ const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestor
 const useEmulator = process.argv.includes('--emulator');
 
 // Testkontoer som bare finnes i den lokale Auth-emulatoren
-const DEMO_USER = { email: 'kunde@timeflyt.test', password: 'timeflyt-test', displayName: 'Test Kunde' };
+const DEMO_USER = { email: 'kunde@bookzy.test', password: 'bookzy-test', displayName: 'Test Kunde' };
 // Eier av Salong Nord, for å teste bedriftsmodusen
-const DEMO_OWNER = { email: 'salong@timeflyt.test', password: 'timeflyt-test', displayName: 'Lea Andersen' };
+const DEMO_OWNER = { email: 'salong@bookzy.test', password: 'bookzy-test', displayName: 'Lea Andersen' };
 const DEMO_SALON_ID = 'salong-nord';
 
 if (useEmulator) {

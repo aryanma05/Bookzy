@@ -2,12 +2,12 @@
 const { spawnSync } = require('node:child_process');
 
 const result = spawnSync(
-  'firebase emulators:exec --only firestore --project demo-timeflyt "node --test tests/*.test.mjs"',
+  'firebase emulators:exec --only firestore --project demo-bookzy "node --test tests/*.test.mjs"',
   { stdio: 'inherit', shell: true }
 );
 
 // På Windows lar firebase-tools Firestore-emulatoren (java) bli hengende etter emulators:exec,
-// slik at neste kjøring får «port taken». Stopp bare test-emulatoren (demo-timeflyt).
+// slik at neste kjøring får «port taken». Stopp bare test-emulatoren (demo-bookzy).
 if (process.platform === 'win32') {
   spawnSync(
     'powershell',
@@ -15,7 +15,7 @@ if (process.platform === 'win32') {
       '-NoProfile',
       '-Command',
       "Get-CimInstance Win32_Process -Filter \"Name='java.exe'\" | " +
-        "Where-Object { $_.CommandLine -like '*cloud-firestore-emulator*demo-timeflyt*' } | " +
+        "Where-Object { $_.CommandLine -like '*cloud-firestore-emulator*demo-bookzy*' } | " +
         'ForEach-Object { Stop-Process -Id $_.ProcessId -Force }',
     ],
     { stdio: 'inherit' }

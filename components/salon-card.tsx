@@ -21,7 +21,7 @@ function useDistance(salon: Salon) {
 
 function RatingLine({ salon }: { salon: Salon }) {
   if (salon.rating === null) {
-    return <Text variant="label" color={colors.primary}>Ny på Timeflyt</Text>;
+    return <Text variant="label" color={colors.primary}>Ny på Bookzy</Text>;
   }
   return (
     <View style={styles.ratingRow}>
