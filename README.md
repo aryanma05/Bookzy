@@ -48,6 +48,16 @@ Expo Go works for most things. Reminders and location are best tested in a devel
 2. **Deploy security rules and indexes:** `npm run deploy:firestore` (requires `npm i -g firebase-tools` and `firebase login`). The reviews list and the business calendar need the composite indexes in `firestore.indexes.json`; they take a few minutes to build after deploying.
 3. **Add sample salons:** download a service account key (Project settings → Service accounts → Generate new private key), save it as `serviceAccountKey.json` in the project root (it is git-ignored) and run `npm run seed`. This replaces the sample salons; salons registered by businesses in the app are never touched.
 
+## Booking link
+
+Each salon gets a link to its page, `<web address>/salon/<id>`, to put in the Instagram bio or send by SMS. The link is shown under *Bookinglenke* in business mode and is also included when customers share a salon. Set the address of the web version in `.env` (the same value as `APP_URL` for the functions below) and restart Expo:
+
+```
+EXPO_PUBLIC_APP_URL=https://app.yourdomain.no
+```
+
+Without it, salons are shared without a link and the button in business mode is hidden.
+
 ## Notifications (one time)
 
 Notifications are sent by Cloud Functions in `functions/`. They need the Blaze plan (pay as you go – the free quota covers a small business with plenty to spare).

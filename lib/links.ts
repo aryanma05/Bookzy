@@ -18,8 +18,33 @@ export function callSalon(salon: Salon) {
   );
 }
 
+// Adressen til nettversjonen, samme verdi som APP_URL i functions. Uten den deles salongen uten lenke.
+const appUrl = (process.env.EXPO_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '');
+
+/** Lenke til salongsiden som kunder kan åpne i nettleseren, eller null hvis EXPO_PUBLIC_APP_URL ikke er satt. */
+export function salonLink(salonId: string): string | null {
+  return appUrl ? `${appUrl}/salon/${encodeURIComponent(salonId)}` : null;
+}
+
+/** For salongen selv: bare lenken, så den kan limes rett inn i Instagram-bio eller en SMS. */
+export async function shareBookingLink(link: string) {
+  try {
+    if (Platform.OS === 'web') {
+      await navigator.clipboard.writeText(link);
+      showAlert('Lenken er kopiert', link);
+      return;
+    }
+    await Share.share({ message: link });
+  } catch {
+    // Avbrutt, eller nettleseren nektet tilgang til utklippstavlen. Lenken står også under knappen.
+  }
+}
+
 export async function shareSalon(salon: Salon) {
-  const message = `${salon.name} – ${salon.address}. Book time i Timeflyt-appen.`;
+  const link = salonLink(salon.id);
+  const message = link
+    ? `${salon.name} – ${salon.address}. Book time her: ${link}`
+    : `${salon.name} – ${salon.address}. Book time i Timeflyt-appen.`;
   try {
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {
