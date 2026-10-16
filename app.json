@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Timeflyt",
-    "slug": "Timeflyt",
+    "name": "Bookzy",
+    "slug": "Bookzy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "timeflyt",
+    "scheme": "bookzy",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
@@ -44,7 +44,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Timeflyt bruker posisjonen din til å vise salonger i nærheten."
+          "locationWhenInUsePermission": "Bookzy bruker posisjonen din til å vise salonger i nærheten."
         }
       ],
       "expo-font",

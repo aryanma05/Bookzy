@@ -176,7 +176,7 @@ function SalonDetails({ salon }: { salon: Salon }) {
                 <Text variant="caption" color={colors.textMuted}>({salon.reviewCount} anmeldelser)</Text>
               </>
             ) : (
-              <Text variant="label" color={colors.primary}>Ny på Timeflyt</Text>
+              <Text variant="label" color={colors.primary}>Ny på Bookzy</Text>
             )}
           </PressableScale>
 

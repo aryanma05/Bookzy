@@ -86,7 +86,7 @@ function layout({
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#F4F7FA;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
 <div style="max-width:520px;margin:0 auto;padding:32px 20px">
-<p style="margin:0 0 20px;font-size:20px;font-weight:800;color:${BRAND}">Timeflyt</p>
+<p style="margin:0 0 20px;font-size:20px;font-weight:800;color:${BRAND}">Bookzy</p>
 <div style="background:#FFFFFF;border-radius:14px;padding:24px">
 ${greeting ? paragraph(greeting) : ''}${paragraph(intro)}${table}${paragraphs.map(paragraph).join('')}${button}
 </div>
@@ -109,11 +109,11 @@ function bookingRows(booking: BookingInfo): Row[] {
 }
 
 function customerFooter(booking: BookingInfo) {
-  return `Du får denne e-posten fordi du har booket time hos ${booking.salonName} med Timeflyt.`;
+  return `Du får denne e-posten fordi du har booket time hos ${booking.salonName} med Bookzy.`;
 }
 
 const SALON_FOOTER =
-  'Du får denne e-posten fordi du har en bedrift på Timeflyt. E-post om bookinger slår du av under Salongen → Varsler i appen.';
+  'Du får denne e-posten fordi du har en bedrift på Bookzy. E-post om bookinger slår du av under Salongen → Varsler i appen.';
 
 // ---- Til kunden ----
 

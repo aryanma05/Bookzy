@@ -32,7 +32,7 @@ let testEnv;
 
 before(async () => {
   testEnv = await initializeTestEnvironment({
-    projectId: 'demo-timeflyt',
+    projectId: 'demo-bookzy',
     firestore: { rules: readFileSync('firestore.rules', 'utf8') },
   });
 });

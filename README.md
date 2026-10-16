@@ -1,6 +1,6 @@
-# Timeflyt
+# Bookzy
 
-Timeflyt is a booking app for salons — hairdressers, barbers, nail studios, massage and skincare. Instead of booking through DMs and phone calls, customers find a place nearby, pick a service, a staff member and a free time, and the appointment is confirmed straight away.
+Bookzy is a booking app for salons — hairdressers, barbers, nail studios, massage and skincare. Instead of booking through DMs and phone calls, customers find a place nearby, pick a service, a staff member and a free time, and the appointment is confirmed straight away.
 
 The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and the web. The UI is in Norwegian.
 
@@ -20,7 +20,7 @@ The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and th
 
 ### For businesses
 
-Timeflyt is built first and foremost for home-based salons, solo technicians and small businesses, with room to grow into larger salons. Business mode lives in the same app (Profile → *Timeflyt for bedrifter*) and works on the web, so the salon can use it on a PC.
+Bookzy is built first and foremost for home-based salons, solo technicians and small businesses, with room to grow into larger salons. Business mode lives in the same app (Profile → *Bookzy for bedrifter*) and works on the web, so the salon can use it on a PC.
 
 - Register a business in one form: name, category, home salon or salon/studio, area and contact info. The owner becomes the first person customers can book with, so a solo business doesn't need to set up staff at all
 - Home salons can leave the address empty; customers then only see the area
@@ -59,7 +59,7 @@ Notifications are sent by Cloud Functions in `functions/`. They need the Blaze p
    firebase functions:secrets:set RESEND_API_KEY
    firebase functions:secrets:set EXPO_ACCESS_TOKEN
    ```
-4. **Deploy:** `npm --prefix functions install`, then `npm run deploy:firestore` and `npm run deploy:functions`. The first deploy asks for `EMAIL_FROM` (for example `Timeflyt <varsler@yourdomain.no>`) and `APP_URL` (the address of the web version, used for links in emails – can be left empty) and saves them in `functions/.env.timeflyt`.
+4. **Deploy:** `npm --prefix functions install`, then `npm run deploy:firestore` and `npm run deploy:functions`. The first deploy asks for `EMAIL_FROM` (for example `Bookzy <varsler@yourdomain.no>`) and `APP_URL` (the address of the web version, used for links in emails – can be left empty) and saves them in `functions/.env.timeflyt`.
 5. **Optional:** turn on a TTL policy on the `expireAt` field for the `sentNotifications` and `pushTickets` collections (Firestore → TTL) so old entries are deleted automatically.
 
 How it works:

@@ -31,7 +31,7 @@ function useReminderSetting() {
     if (value && user && pushSupported && (await registerForPush(user.uid, { ask: true })) === 'denied') {
       showAlert(
         'Varsler er slått av på telefonen',
-        `${emailVerified ? 'Påminnelsene kommer på e-post i stedet. ' : ''}Gi Timeflyt lov til å sende varsler i innstillingene på telefonen for å få dem som varsel.`
+        `${emailVerified ? 'Påminnelsene kommer på e-post i stedet. ' : ''}Gi Bookzy lov til å sende varsler i innstillingene på telefonen for å få dem som varsel.`
       );
     }
   };
@@ -127,7 +127,7 @@ export default function ProfileScreen() {
 
       <Section title="Hjelp">
         <ListRow icon="help-circle-outline" label="Vanlige spørsmål" onPress={() => router.push('/help')} last={!!salon} />
-        {!salon && <ListRow icon="storefront-outline" label="Timeflyt for bedrifter" onPress={openBusiness} last />}
+        {!salon && <ListRow icon="storefront-outline" label="Bookzy for bedrifter" onPress={openBusiness} last />}
       </Section>
 
       {user && (
@@ -138,7 +138,7 @@ export default function ProfileScreen() {
       )}
 
       <Text variant="caption" color={colors.textMuted} align="center" style={styles.version}>
-        Timeflyt {version}
+        Bookzy {version}
       </Text>
     </ScrollView>
   );

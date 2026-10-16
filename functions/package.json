@@ -1,5 +1,5 @@
 {
-  "name": "timeflyt-functions",
+  "name": "bookzy-functions",
   "private": true,
   "main": "lib/index.js",
   "engines": {

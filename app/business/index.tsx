@@ -57,7 +57,7 @@ export default function BusinessStartScreen() {
 
         <View style={styles.hero}>
           <LogoMark height={48} />
-          <Text variant="overline" color={colors.primary}>Timeflyt for bedrifter</Text>
+          <Text variant="overline" color={colors.primary}>Bookzy for bedrifter</Text>
           <Text variant="display" align="center">Ta imot bookinger uten meldinger frem og tilbake</Text>
           <Text variant="body" color={colors.textSecondary} align="center">
             For frisører, negleteknikere, barberer, massører og hudterapeuter – hjemme, i studio eller i salong.

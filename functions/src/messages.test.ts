@@ -47,7 +47,7 @@ describe('kvittering til kunden', () => {
 
   test('lenke bare når den er satt', () => {
     assert.doesNotMatch(messages.bookingReceipt(booking(), NOW, null).html, /<a /);
-    assert.match(messages.bookingReceipt(booking(), NOW, 'https://timeflyt.no/booking/abc123').html, /href="https:\/\/timeflyt\.no\/booking\/abc123"/);
+    assert.match(messages.bookingReceipt(booking(), NOW, 'https://bookzy.no/booking/abc123').html, /href="https:\/\/bookzy\.no\/booking\/abc123"/);
   });
 });
 
@@ -89,7 +89,7 @@ describe('sikkerhet', () => {
   });
 
   test('lenker escapes også', () => {
-    const email = messages.bookingReceipt(booking(), NOW, 'https://timeflyt.no/"><script>');
+    const email = messages.bookingReceipt(booking(), NOW, 'https://bookzy.no/"><script>');
     assert.doesNotMatch(email.html, /"><script>/);
   });
 });

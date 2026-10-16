@@ -19,7 +19,7 @@ export function callSalon(salon: Salon) {
 }
 
 export async function shareSalon(salon: Salon) {
-  const message = `${salon.name} – ${salon.address}. Book time i Timeflyt-appen.`;
+  const message = `${salon.name} – ${salon.address}. Book time i Bookzy-appen.`;
   try {
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {

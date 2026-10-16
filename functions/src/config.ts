@@ -12,7 +12,7 @@ export const expoAccessToken = defineSecret('EXPO_ACCESS_TOKEN', {
 // Tom standardverdi, så emulatoren starter uten oppsett. `firebase deploy` spør likevel.
 export const emailFrom = defineString('EMAIL_FROM', {
   default: '',
-  description: 'Avsender, f.eks. «Timeflyt <varsler@dittdomene.no>». Domenet må være verifisert hos Resend.',
+  description: 'Avsender, f.eks. «Bookzy <varsler@dittdomene.no>». Domenet må være verifisert hos Resend.',
 });
 
 export const appUrl = defineString('APP_URL', {
