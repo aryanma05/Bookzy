@@ -50,13 +50,21 @@ Expo Go works for most things. Reminders and location are best tested in a devel
 
 ## Booking link
 
-Each salon gets a link to its page, `<web address>/salon/<id>`, to put in the Instagram bio or send by SMS. The link is shown under *Bookinglenke* in business mode and is also included when customers share a salon. Set the address of the web version in `.env` (the same value as `APP_URL` for the functions below) and restart Expo:
+Each salon gets a link to its page, `<web address>/salon/<id>`, to put in the Instagram bio or send by SMS. The link is shown under *Bookinglenke* in business mode and is also included when customers share a salon.
 
-```
-EXPO_PUBLIC_APP_URL=https://app.yourdomain.no
-```
+The web version is hosted on Firebase Hosting:
 
-Without it, salons are shared without a link and the button in business mode is hidden.
+1. Run `npm run deploy:web`. It exports the web version to `dist/` and deploys it. The address is shown at the end of the output, usually `https://timeflyt.web.app`. If the deploy says the site doesn't exist, open Hosting in Firebase Console and click *Get started* once.
+2. **Optional:** add your own domain under Firebase Console → Hosting → *Add custom domain*.
+3. Set the address in `.env` and deploy again, since the value is built into the app when it is exported. Restart Expo to use it in development, and set it before building the iOS and Android apps too:
+   ```
+   EXPO_PUBLIC_APP_URL=https://timeflyt.web.app
+   ```
+4. Set `APP_URL` in `functions/.env.timeflyt` to the same address and run `npm run deploy:functions`, so links in emails point to the web version.
+
+Without `EXPO_PUBLIC_APP_URL`, salons are shared without a link and the button in business mode is hidden.
+
+The web version is a set of static pages. Pages with an id in the address, such as `salon/[id]`, are exported once and served for every id by the rewrites in `firebase.json`. A new screen with an id in its path needs a rewrite there too. To test it locally, run `npx expo export -p web` and `firebase emulators:start --only hosting`, then open `http://127.0.0.1:5000/salon/<id>`.
 
 ## Notifications (one time)
 
@@ -107,6 +115,7 @@ This creates two test accounts (email and password are in `scripts/seedSalons.js
 | `npm run seed` / `seed:emulator` | Add sample salons |
 | `npm run deploy:firestore` | Deploy rules and indexes |
 | `npm run deploy:functions` | Deploy the notification functions |
+| `npm run deploy:web` | Export the web version and deploy it to Firebase Hosting |
 
 ## Project structure
 
