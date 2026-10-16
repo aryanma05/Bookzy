@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { useBusiness } from '@/context/BusinessContext';
 import { useEmailVerification } from '@/hooks/use-email-verification';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
+import { salonLink, shareBookingLink } from '@/lib/links';
 import { pushPermissionGranted, pushSupported, registerForPush } from '@/lib/push';
 import { toDateKey, WEEK } from '@/lib/schedule';
 
@@ -99,6 +100,7 @@ export default function SalonSettingsScreen() {
   const today = toDateKey(new Date());
   const upcomingDaysOff = new Set(salon.closedDates.filter((key) => key >= today).map((key) => key.slice(0, 10))).size;
   const canPublish = salon.services.length > 0 && openDays > 0;
+  const link = salonLink(salon.id);
 
   const setPublished = async (published: boolean) => {
     setPublishing(true);
@@ -183,6 +185,20 @@ export default function SalonSettingsScreen() {
             onPress={() => setPublished(true)}
           />
         </View>
+      )}
+
+      {salon.published && link && (
+        <SettingsSection
+          title="Bookinglenke"
+          footer={`Legg lenken i Instagram-bio eller send den på SMS, så booker kundene rett hos deg.\n${link}`}
+        >
+          <ListRow
+            icon={Platform.OS === 'web' ? 'copy-outline' : 'share-outline'}
+            label={Platform.OS === 'web' ? 'Kopier lenke' : 'Del bookinglenke'}
+            onPress={() => shareBookingLink(link)}
+            last
+          />
+        </SettingsSection>
       )}
 
       <SettingsSection title="Oppsett">

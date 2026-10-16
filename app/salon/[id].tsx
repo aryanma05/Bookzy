@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Stars } from '@/components/ui/stars';
 import { Text } from '@/components/ui/text';
 import { colors, fonts, radius } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { useLocation } from '@/context/LocationContext';
 import { useSalons } from '@/context/SalonsContext';
 import { useNow } from '@/hooks/use-now';
@@ -52,8 +53,11 @@ type Tab = 'services' | 'reviews' | 'about';
 export default function SalonScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const { getSalon, loading } = useSalons();
   const salon = id ? getSalon(id) : undefined;
+  // Upubliserte sider ser bare eieren, så den kan se over siden før den publiseres
+  const hidden = !!salon && !salon.published && salon.ownerId !== user?.uid;
 
   if (loading) {
     return (
@@ -68,13 +72,13 @@ export default function SalonScreen() {
     );
   }
 
-  if (!salon) {
+  if (!salon || hidden) {
     return (
       <View style={[styles.screen, styles.center]}>
         <EmptyState
           icon="storefront-outline"
-          title="Fant ikke salongen"
-          message="Den kan ha blitt fjernet, eller lenken er feil."
+          title={hidden ? 'Salongen tar ikke imot bookinger her ennå' : 'Fant ikke salongen'}
+          message={hidden ? 'Prøv igjen senere, eller kontakt salongen direkte.' : 'Den kan ha blitt fjernet, eller lenken er feil.'}
           actionLabel="Til forsiden"
           onAction={() => router.replace('/explore')}
         />
