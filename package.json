@@ -10,9 +10,11 @@
     "lint": "expo lint",
     "seed": "node ./scripts/seedSalons.js",
     "seed:emulator": "node ./scripts/seedSalons.js --emulator",
-    "emulators": "firebase emulators:start --only auth,firestore --project timeflyt",
+    "emulators": "npm --prefix functions run build && firebase emulators:start --only auth,firestore,functions --project timeflyt",
     "deploy:firestore": "firebase deploy --only firestore",
-    "test:rules": "node ./scripts/test-rules.js"
+    "deploy:functions": "firebase deploy --only functions",
+    "test:rules": "node ./scripts/test-rules.js",
+    "test:functions": "npm --prefix functions test"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

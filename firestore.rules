@@ -88,16 +88,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Navn og telefon, og om brukeren vil ha påminnelser og e-post om bookinger (mangler = på).
+    // Innstillingene lagres med merge, så alle feltene er valgfrie.
+    function validProfile(data) {
+      return data.keys().hasOnly(['name', 'phone', 'reminders', 'salonEmails', 'updatedAt'])
+        && data.get('name', '') is string
+        && data.get('name', '').size() <= 80
+        && data.get('phone', '') is string
+        && data.get('phone', '').size() <= 20
+        && data.get('reminders', true) is bool
+        && data.get('salonEmails', true) is bool;
+    }
+
     // Profil og favoritter – bare for eieren.
     match /users/{uid} {
       allow read, delete: if isUser(uid);
 
-      allow create, update: if isUser(uid)
-        && request.resource.data.keys().hasOnly(['name', 'phone', 'updatedAt'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() <= 80
-        && request.resource.data.phone is string
-        && request.resource.data.phone.size() <= 20;
+      allow create, update: if isUser(uid) && validProfile(request.resource.data);
 
       match /favorites/{salonId} {
         allow read, delete: if isUser(uid);
@@ -117,7 +124,7 @@ service cloud.firestore {
           'userId', 'customerName', 'customerPhone', 'note',
           'salonId', 'salonName', 'serviceId', 'serviceName', 'staffId', 'staffName',
           'durationMin', 'priceNok', 'date', 'time', 'startAt', 'endAt', 'cancellableUntil',
-          'slotIds', 'status', 'createdAt'
+          'slotIds', 'status', 'createdAt', 'replacesBookingId'
         ])
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'confirmed'
@@ -143,7 +150,14 @@ service cloud.firestore {
         && request.resource.data.slotIds.size() > 0
         && request.resource.data.slotIds.size() <= 16
         // Bookingen må skrives sammen med lukene sine (samme transaksjon)
-        && getAfter(slotPath(request.resource.data.slotIds[0])).data.bookingId == bookingId;
+        && getAfter(slotPath(request.resource.data.slotIds[0])).data.bookingId == bookingId
+        // Flyttes en time, avbestilles den gamle i samme operasjon. Brukes til å si «flyttet» i varslene.
+        && (!('replacesBookingId' in request.resource.data)
+          || (request.resource.data.replacesBookingId is string
+            && request.resource.data.replacesBookingId != bookingId
+            && getAfter(bookingPath(request.resource.data.replacesBookingId)).data.userId == request.auth.uid
+            && getAfter(bookingPath(request.resource.data.replacesBookingId)).data.salonId == request.resource.data.salonId
+            && getAfter(bookingPath(request.resource.data.replacesBookingId)).data.status == 'cancelled'));
 
       allow update: if
         // Kunden kan bare avbestille, og bare før salongens frist
@@ -218,5 +232,24 @@ service cloud.firestore {
 
       allow update, delete: if false;
     }
+
+    // Enhetene som får push-varsler. Dokument-ID-en er Expo-tokenet, så hver enhet hører til
+    // den som sist logget inn på den – da får aldri neste bruker varslene til den forrige.
+    // Bare serveren leser dem.
+    match /pushTokens/{token} {
+      allow read: if false;
+
+      allow create, update: if signedIn()
+        && token.matches('^Expo(nent)?PushToken\\[[A-Za-z0-9_-]{8,128}\\]$')
+        && request.resource.data.keys().hasOnly(['uid', 'platform', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.platform in ['ios', 'android']
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if signedIn() && (resource == null || resource.data.uid == request.auth.uid);
+    }
+
+    // reminders, sentNotifications og pushTickets brukes bare av serveren (Cloud Functions),
+    // og har derfor ingen regler – appen kan verken lese eller skrive dem.
   }
 }

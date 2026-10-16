@@ -6,17 +6,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
-import { useBookings } from '@/context/BookingContext';
+import { useAuth } from '@/context/AuthContext';
+import { useBookings, type Booking } from '@/context/BookingContext';
 import { useNow } from '@/hooks/use-now';
-import { remindersSupported } from '@/lib/reminders';
 import { formatPrice } from '@/lib/salons';
 import { formatDay, toMinutes, toTime } from '@/lib/schedule';
+
+const HOUR = 60 * 60 * 1000;
+
+/** Samme regel som på serveren (functions/src/format.ts): et døgn før, eller to timer før. */
+function reminderText(booking: Booking | undefined, now: Date): string {
+  if (!booking) return '';
+  const lead = booking.startAt.getTime() - now.getTime();
+  if (lead > 25 * HOUR) return ' Vi minner deg på den dagen før.';
+  if (lead > 3 * HOUR) return ' Vi minner deg på den to timer før.';
+  return '';
+}
 
 export default function BookingSuccessScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = useNow();
   const { bookingId, moved } = useLocalSearchParams<{ bookingId: string; moved?: string }>();
+  const { preferences, emailVerified } = useAuth();
   const { bookings } = useBookings();
   const booking = bookings.find((item) => item.id === bookingId);
 
@@ -42,7 +54,8 @@ export default function BookingSuccessScreen() {
           <Text variant="display" align="center">{moved ? 'Timen er flyttet!' : 'Timen er booket!'}</Text>
           <Text variant="body" color={colors.textSecondary} align="center">
             Du finner den under Timer.
-            {remindersSupported ? ' Vi minner deg på den dagen før.' : ''}
+            {emailVerified ? ' Bekreftelsen er sendt på e-post.' : ''}
+            {preferences.reminders ? reminderText(booking, now) : ''}
           </Text>
         </Animated.View>
 

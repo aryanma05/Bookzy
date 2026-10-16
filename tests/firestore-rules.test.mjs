@@ -272,9 +272,32 @@ describe('avbestille og flytte', () => {
 
   test('eieren kan flytte timen i én operasjon', async () => {
     const firestore = db('alice');
-    const batch = book(firestore, 'alice', { bookingId: 'ny-booking', times: ['14:00', '14:30'] });
+    const batch = book(firestore, 'alice', {
+      bookingId: 'ny-booking',
+      times: ['14:00', '14:30'],
+      overrides: { replacesBookingId: 'booking-alice' },
+    });
     cancel(batch, firestore, 'booking-alice');
     await assertSucceeds(batch.commit());
+  });
+
+  test('en flyttet time må avbestille den gamle samtidig', async () => {
+    const batch = book(db('alice'), 'alice', {
+      bookingId: 'ny-booking',
+      times: ['14:00', '14:30'],
+      overrides: { replacesBookingId: 'booking-alice' },
+    });
+    await assertFails(batch.commit());
+  });
+
+  test('kan ikke si at man flytter en annens time', async () => {
+    await asAdmin((firestore) => updateDoc(doc(firestore, 'bookings', 'booking-alice'), { status: 'cancelled' }));
+    const batch = book(db('bob'), 'bob', {
+      bookingId: 'ny-booking',
+      times: ['14:00', '14:30'],
+      overrides: { replacesBookingId: 'booking-alice' },
+    });
+    await assertFails(batch.commit());
   });
 
   test('andre kan ikke avbestille', async () => {
@@ -370,6 +393,24 @@ describe('profil og favoritter', () => {
 
   test('profilen kan ikke inneholde ukjente felt', async () => {
     await assertFails(setDoc(doc(db('alice'), 'users', 'alice'), { name: 'Alice', phone: '', admin: true }));
+  });
+
+  test('kan slå av påminnelser og e-post uten å miste profilen', async () => {
+    const ref = doc(db('alice'), 'users', 'alice');
+    await assertSucceeds(setDoc(ref, { name: 'Alice', phone: '40000000', updatedAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(ref, { reminders: false, salonEmails: false, updatedAt: serverTimestamp() }, { merge: true }));
+    const saved = (await getDoc(ref)).data();
+    assert.equal(saved.name, 'Alice');
+    assert.equal(saved.reminders, false);
+  });
+
+  test('innstillingene må være av eller på', async () => {
+    await assertFails(setDoc(doc(db('alice'), 'users', 'alice'), { reminders: 'nei' }, { merge: true }));
+    await assertFails(setDoc(doc(db('alice'), 'users', 'alice'), { salonEmails: 1 }, { merge: true }));
+  });
+
+  test('andre kan ikke slå av varslene dine', async () => {
+    await assertFails(setDoc(doc(db('bob'), 'users', 'alice'), { reminders: false }, { merge: true }));
   });
 
   test('eieren kan legge til og fjerne favoritter', async () => {
@@ -581,5 +622,64 @@ describe('møtte ikke', () => {
     const bookingId = await completedBooking('alice');
     await setStatus(OWNER, bookingId, 'noShow');
     await assertFails(review(db('alice'), bookingId));
+  });
+});
+
+describe('push-varsler', () => {
+  const TOKEN = 'ExponentPushToken[abcdefghijklmnop123456]';
+  const register = (uid, owner = uid, token = TOKEN, overrides = {}) =>
+    setDoc(doc(db(uid), 'pushTokens', token), { uid: owner, platform: 'ios', updatedAt: serverTimestamp(), ...overrides });
+
+  test('innlogget bruker kan registrere enheten sin', async () => {
+    await assertSucceeds(register('alice'));
+  });
+
+  test('må være logget inn', async () => {
+    await assertFails(
+      setDoc(doc(db(null), 'pushTokens', TOKEN), { uid: 'alice', platform: 'ios', updatedAt: serverTimestamp() })
+    );
+  });
+
+  test('kan ikke registrere en enhet på noen andre', async () => {
+    await assertFails(register('alice', 'bob'));
+  });
+
+  test('bare ekte Expo-token godtas', async () => {
+    await assertFails(register('alice', 'alice', 'noe-annet'));
+    await assertFails(register('alice', 'alice', 'ExponentPushToken[]'));
+    await assertSucceeds(register('alice', 'alice', 'ExpoPushToken[abc-DEF_123456789]'));
+  });
+
+  test('kan ikke legge til ukjente felt', async () => {
+    await assertFails(register('alice', 'alice', TOKEN, { email: 'alice@example.com' }));
+    await assertFails(register('alice', 'alice', TOKEN, { platform: 'web' }));
+  });
+
+  test('ingen kan lese enhetene fra appen', async () => {
+    await register('alice');
+    await assertFails(getDoc(doc(db('alice'), 'pushTokens', TOKEN)));
+    await assertFails(getDocs(query(collection(db('bob'), 'pushTokens'), where('uid', '==', 'alice'))));
+  });
+
+  test('den som logger inn på enheten, tar den over', async () => {
+    await register('alice');
+    await assertSucceeds(register('bob'));
+  });
+
+  test('kan bare fjerne sin egen enhet', async () => {
+    await register('alice');
+    await assertFails(deleteDoc(doc(db('bob'), 'pushTokens', TOKEN)));
+    await assertSucceeds(deleteDoc(doc(db('alice'), 'pushTokens', TOKEN)));
+  });
+});
+
+describe('serverens data', () => {
+  test('appen kan verken lese eller skrive påminnelser og varsellogg', async () => {
+    await asAdmin((firestore) => setDoc(doc(firestore, 'reminders', 'booking-alice'), { userId: 'alice' }));
+    await assertFails(getDoc(doc(db('alice'), 'reminders', 'booking-alice')));
+    await assertFails(setDoc(doc(db('alice'), 'reminders', 'x'), { userId: 'alice' }));
+    await assertFails(deleteDoc(doc(db('alice'), 'reminders', 'booking-alice')));
+    await assertFails(setDoc(doc(db('alice'), 'sentNotifications', 'created_x'), {}));
+    await assertFails(getDoc(doc(db('alice'), 'pushTickets', 'x')));
   });
 });

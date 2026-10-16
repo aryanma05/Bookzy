@@ -28,12 +28,22 @@ const QUESTIONS = [
   {
     question: 'Får jeg påminnelse før timen?',
     answer:
-      'I appen får du et varsel dagen før (eller to timer før hvis du booker samme dag). Du kan slå påminnelser av og på under Profil.',
+      'Ja, dagen før (eller to timer før hvis du booker samme dag). Har du appen, kommer den som varsel på mobilen – ellers på e-post. Du kan slå påminnelser av og på under Profil.',
+  },
+  {
+    question: 'Får jeg bekreftelse på e-post?',
+    answer:
+      'Ja, når du har bekreftet e-postadressen din. Da får du e-post når du booker, flytter eller avbestiller, og hvis salongen må avlyse timen.',
   },
   {
     question: 'Jeg har en salong. Hvordan kommer jeg med?',
     answer:
       'Gå til Profil og velg «Timeflyt for bedrifter». Der registrerer du bedriften, legger inn tjenester og åpningstider og publiserer siden. Kalenderen fungerer både på mobilen og på PC.',
+  },
+  {
+    question: 'Hvordan får salongen vite om nye bookinger?',
+    answer:
+      'Med appen på mobilen får du varsel med en gang noen booker, flytter eller avbestiller. Du får også e-post, og den kan du slå av under Salongen → Varsler.',
   },
   {
     question: 'Hvem kan se anmeldelsen min?',

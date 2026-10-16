@@ -1,10 +1,13 @@
+import { useEffect } from 'react';
 import type { ColorValue } from 'react-native';
 import { useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { haptics } from '@/lib/haptics';
+import { registerForPush } from '@/lib/push';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type TabIconProps = { color: ColorValue; focused: boolean };
@@ -14,11 +17,18 @@ function TabIcon({ color, focused, active, inactive }: TabIconProps & { active: 
 }
 
 export default function BusinessTabLayout() {
+  const { user } = useAuth();
+  const uid = user?.uid;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   // På PC og nettbrett på tvers ligger menyen til venstre
   const sidebar = width >= 900;
   const bottomPadding = Math.max(insets.bottom, 8);
+
+  // Salongen vil vite om nye bookinger med en gang, så vi spør om varsler første gang
+  useEffect(() => {
+    if (uid) registerForPush(uid, { ask: true });
+  }, [uid]);
 
   return (
     <Tabs
