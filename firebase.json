@@ -14,6 +14,20 @@
       "predeploy": ["npm --prefix functions test"]
     }
   ],
+  "hosting": {
+    "public": "dist",
+    "cleanUrls": true,
+    "ignore": ["firebase.json", "**/.*"],
+    "rewrites": [
+      { "source": "/salon/**", "destination": "/salon/[id].html" },
+      { "source": "/book/**", "destination": "/book/[salonId].html" },
+      { "source": "/booking/**", "destination": "/booking/[id].html" },
+      { "source": "/review/**", "destination": "/review/[bookingId].html" },
+      { "source": "/business/booking/**", "destination": "/business/booking/[id].html" },
+      { "source": "/business/service/**", "destination": "/business/service/[id].html" },
+      { "source": "/business/staff/**", "destination": "/business/staff/[id].html" }
+    ]
+  },
   "emulators": {
     "auth": {
       "port": 9099

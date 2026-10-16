@@ -13,6 +13,7 @@
     "emulators": "npm --prefix functions run build && firebase emulators:start --only auth,firestore,functions --project timeflyt",
     "deploy:firestore": "firebase deploy --only firestore",
     "deploy:functions": "firebase deploy --only functions",
+    "deploy:web": "expo export -p web && firebase deploy --only hosting",
     "test:rules": "node ./scripts/test-rules.js",
     "test:functions": "npm --prefix functions test"
   },
