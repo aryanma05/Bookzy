@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { useRouter, type Href } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,65 @@ import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useBusiness } from '@/context/BusinessContext';
+import { useEmailVerification } from '@/hooks/use-email-verification';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
+import { pushPermissionGranted, pushSupported, registerForPush } from '@/lib/push';
 import { toDateKey, WEEK } from '@/lib/schedule';
+
+/** E-post og push om nye bookinger og avbestillinger. */
+function NotificationSettings() {
+  const { user, preferences, savePreferences } = useAuth();
+  const verification = useEmailVerification();
+  const [pushAllowed, setPushAllowed] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (pushSupported) pushPermissionGranted().then(setPushAllowed);
+    }, [])
+  );
+
+  const enablePush = async () => {
+    if (!user) return;
+    const status = await registerForPush(user.uid, { ask: true });
+    if (status === 'denied') Linking.openSettings();
+    setPushAllowed(status === 'enabled');
+  };
+
+  const toggleEmails = (salonEmails: boolean) => {
+    savePreferences({ salonEmails }).catch((error) => {
+      console.error('Kunne ikke lagre innstillingen:', error);
+      showAlert('Noe gikk galt', 'Kunne ikke lagre innstillingen. Prøv igjen.');
+    });
+  };
+
+  const footer = !verification.verified
+    ? 'Bekreft e-postadressen din for å få e-post når noen booker eller avbestiller.'
+    : preferences.salonEmails
+      ? `Vi sender e-post til ${user?.email} når noen booker, flytter eller avbestiller.${pushSupported ? '' : ' Med appen på mobilen får du også varsel med en gang.'}`
+      : pushSupported
+        ? 'Du får bare varsel her i appen.'
+        : 'Med appen på mobilen får du varsel med en gang.';
+
+  return (
+    <SettingsSection title="Varsler" footer={footer}>
+      {pushSupported && !pushAllowed && (
+        <ListRow icon="notifications-off-outline" label="Slå på varsler" value="Av" onPress={enablePush} />
+      )}
+      {!verification.verified && (
+        <ListRow icon="mail-unread-outline" label="Bekreft e-postadressen" value="Send lenke" onPress={verification.send} />
+      )}
+      <ListRow
+        icon="mail-outline"
+        label="E-post om bookinger"
+        last
+        right={
+          <Switch value={preferences.salonEmails} onValueChange={toggleEmails} accessibilityLabel="E-post om bookinger" />
+        }
+      />
+    </SettingsSection>
+  );
+}
 
 function ChecklistItem({ done, label, onPress }: { done: boolean; label: string; onPress?: () => void }) {
   return (
@@ -168,6 +224,8 @@ export default function SalonSettingsScreen() {
           />
         </SettingsSection>
       )}
+
+      <NotificationSettings />
 
       <SettingsSection title="Konto">
         <ListRow icon="swap-horizontal-outline" label="Bytt til kundemodus" onPress={switchToCustomer} />

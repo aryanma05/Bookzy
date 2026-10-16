@@ -20,6 +20,7 @@ import { FavoritesProvider } from '@/context/FavoritesContext';
 import { LocationProvider } from '@/context/LocationContext';
 import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
 import { SalonsProvider } from '@/context/SalonsContext';
+import { usePushRegistration } from '@/lib/push';
 
 // Må kalles her i rot-layouten, ikke på en enkelt skjerm – ellers henger splash-skjermen
 // hvis appen åpnes via en lenke rett til en annen side.
@@ -54,7 +55,7 @@ export default function RootLayout() {
 }
 
 function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
-  const { initializing } = useAuth();
+  const { user, initializing } = useAuth();
   const { ready: onboardingReady } = useOnboarding();
   const { modeReady } = useBusiness();
   const isReady = fontsReady && !initializing && onboardingReady && modeReady;
@@ -65,6 +66,7 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
     }
   }, [isReady]);
 
+  usePushRegistration(user?.uid ?? null);
   useOpenBookingFromNotification(isReady);
 
   if (!isReady) {
@@ -86,16 +88,26 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
   );
 }
 
-/** Trykk på en påminnelse åpner timen den gjelder. */
+const BOOKING_ID = /^[A-Za-z0-9_-]{1,100}$/;
+
+/** Trykk på et varsel åpner timen det gjelder – i kalenderen hvis varselet var til salongen. */
 function useOpenBookingFromNotification(enabled: boolean) {
   const router = useRouter();
+  const { setBusinessMode } = useBusiness();
 
   useEffect(() => {
     if (!enabled || Platform.OS === 'web') return;
 
     const open = (response: Notifications.NotificationResponse) => {
-      const bookingId = response.notification.request.content.data?.bookingId;
-      if (typeof bookingId === 'string') router.push(`/booking/${bookingId}`);
+      const data = response.notification.request.content.data ?? {};
+      const bookingId = data.bookingId;
+      if (typeof bookingId !== 'string' || !BOOKING_ID.test(bookingId)) return;
+      if (data.view === 'salon') {
+        setBusinessMode(true);
+        router.push(`/business/booking/${bookingId}`);
+      } else {
+        router.push(`/booking/${bookingId}`);
+      }
     };
 
     const last = Notifications.getLastNotificationResponse();
@@ -105,5 +117,5 @@ function useOpenBookingFromNotification(enabled: boolean) {
     }
     const subscription = Notifications.addNotificationResponseReceivedListener(open);
     return () => subscription.remove();
-  }, [enabled, router]);
+  }, [enabled, router, setBusinessMode]);
 }

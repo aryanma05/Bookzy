@@ -321,7 +321,8 @@ async function seedSalons() {
 
 async function ensureUser({ email, password, displayName }) {
   try {
-    const { uid } = await getAuth().createUser({ email, password, displayName });
+    // Bekreftet, så varslene på e-post kan testes (de vises i loggen til Functions-emulatoren)
+    const { uid } = await getAuth().createUser({ email, password, displayName, emailVerified: true });
     console.log(`Opprettet testkonto ${email} i emulatoren.`);
     return uid;
   } catch (error) {

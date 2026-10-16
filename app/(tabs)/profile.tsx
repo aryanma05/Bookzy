@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -14,26 +13,30 @@ import { colors, radius, shadows } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useBusiness } from '@/context/BusinessContext';
 import { useFavorites } from '@/context/FavoritesContext';
+import { useEmailVerification } from '@/hooks/use-email-verification';
 import { showAlert } from '@/lib/alert';
-import { getRemindersEnabled, remindersSupported, setRemindersEnabled } from '@/lib/reminders';
+import { pushSupported, registerForPush } from '@/lib/push';
 
 function useReminderSetting() {
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    getRemindersEnabled().then(setEnabled).catch(() => {});
-  }, []);
+  const { user, preferences, emailVerified, savePreferences } = useAuth();
 
   const toggle = async (value: boolean) => {
-    setEnabled(value);
-    const actual = await setRemindersEnabled(value);
-    setEnabled(actual);
-    if (value && !actual) {
-      showAlert('Varsler er slått av', 'Gi Timeflyt lov til å sende varsler i innstillingene på telefonen for å få påminnelser.');
+    try {
+      await savePreferences({ reminders: value });
+    } catch (error) {
+      console.error('Kunne ikke lagre innstillingen:', error);
+      showAlert('Noe gikk galt', 'Kunne ikke lagre innstillingen. Prøv igjen.');
+      return;
+    }
+    if (value && user && pushSupported && (await registerForPush(user.uid, { ask: true })) === 'denied') {
+      showAlert(
+        'Varsler er slått av på telefonen',
+        `${emailVerified ? 'Påminnelsene kommer på e-post i stedet. ' : ''}Gi Timeflyt lov til å sende varsler i innstillingene på telefonen for å få dem som varsel.`
+      );
     }
   };
 
-  return { enabled, toggle };
+  return { enabled: preferences.reminders, toggle };
 }
 
 export default function ProfileScreen() {
@@ -43,6 +46,7 @@ export default function ProfileScreen() {
   const { favoriteIds } = useFavorites();
   const { salon, setBusinessMode } = useBusiness();
   const reminders = useReminderSetting();
+  const verification = useEmailVerification();
   const version = Constants.expoConfig?.version ?? '';
 
   const openBusiness = () => {
@@ -88,7 +92,17 @@ export default function ProfileScreen() {
       )}
 
       {user && (
-        <Section title="Konto">
+        <Section
+          title="Konto"
+          footer={
+            verification.verified
+              ? 'Bekreftelser og påminnelser sendes på e-post. Har du appen, kommer påminnelsen som varsel.'
+              : 'Bekreft e-postadressen for å få bekreftelser og påminnelser på e-post.'
+          }
+        >
+          {!verification.verified && (
+            <ListRow icon="mail-unread-outline" label="Bekreft e-postadressen" value="Send lenke" onPress={verification.send} />
+          )}
           <ListRow
             icon="heart-outline"
             label="Favoritter"
@@ -99,16 +113,8 @@ export default function ProfileScreen() {
           <ListRow
             icon="notifications-outline"
             label="Påminnelser før timen"
-            value={remindersSupported ? undefined : 'Bare i appen'}
             last
-            right={
-              remindersSupported ? (
-                <Switch
-                  value={reminders.enabled}
-                  onValueChange={reminders.toggle}
-                />
-              ) : undefined
-            }
+            right={<Switch value={reminders.enabled} onValueChange={reminders.toggle} accessibilityLabel="Påminnelser før timen" />}
           />
         </Section>
       )}

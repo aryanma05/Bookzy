@@ -17,5 +17,7 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+  ],
+  // Cloud Functions har sin egen tsconfig.json
+  "exclude": ["node_modules", "functions"]
 }

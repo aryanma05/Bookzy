@@ -5,6 +5,8 @@ import {
   EmailAuthProvider,
   onAuthStateChanged,
   reauthenticateWithCredential,
+  reload,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -14,31 +16,44 @@ import {
 import { collection, deleteDoc, doc, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
-import { cancelAllReminders } from '@/lib/reminders';
+import { unregisterPush } from '@/lib/push';
 
 export type Profile = { name: string; phone: string };
+
+/** Lagres i users/{uid} og leses av serveren. Mangler et felt, er det slått på. */
+export type Preferences = { reminders: boolean; salonEmails: boolean };
+
+const DEFAULT_PREFERENCES: Preferences = { reminders: true, salonEmails: true };
 
 type AuthContextType = {
   user: User | null;
   profile: Profile | null;
   displayName: string;
+  preferences: Preferences;
+  /** Vi sender bare e-post til bekreftede adresser. */
+  emailVerified: boolean;
   initializing: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: { name: string; email: string; password: string; phone: string }) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   saveProfile: (profile: Profile) => Promise<void>;
+  savePreferences: (changes: Partial<Preferences>) => Promise<void>;
+  sendVerificationEmail: () => Promise<void>;
+  /** Sjekker på nytt om brukeren har trykket på lenken i e-posten. */
+  refreshEmailVerified: () => Promise<boolean>;
   reauthenticate: (password: string) => Promise<void>;
   deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-type ProfileSnapshot = { uid: string; profile: Profile | null };
+type ProfileSnapshot = { uid: string; profile: Profile | null; preferences: Preferences };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authName, setAuthName] = useState<string | null>(null);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [profileSnapshot, setProfileSnapshot] = useState<ProfileSnapshot | null>(null);
   const uid = user?.uid ?? null;
@@ -47,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setAuthName(nextUser?.displayName ?? null);
+      setEmailVerified(nextUser?.emailVerified ?? false);
       setInitializing(false);
     });
   }, []);
@@ -60,13 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfileSnapshot({
           uid,
           profile: data ? { name: data.name ?? '', phone: data.phone ?? '' } : null,
+          preferences: { reminders: data?.reminders !== false, salonEmails: data?.salonEmails !== false },
         });
       },
       (error) => console.warn('Kunne ikke hente profil:', error)
     );
   }, [uid]);
 
-  const profile = uid && profileSnapshot?.uid === uid ? profileSnapshot.profile : null;
+  const currentSnapshot = uid && profileSnapshot?.uid === uid ? profileSnapshot : null;
+  const profile = currentSnapshot?.profile ?? null;
+  const preferences = currentSnapshot?.preferences ?? DEFAULT_PREFERENCES;
   const displayName = profile?.name || authName || user?.email?.split('@')[0] || '';
 
   const signIn = async (email: string, password: string) => {
@@ -83,10 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone: phone.trim(),
       updatedAt: serverTimestamp(),
     }).catch((error) => console.warn('Kunne ikke lagre profil:', error));
+    sendEmailVerification(credential.user).catch((error) => console.warn('Kunne ikke sende bekreftelse:', error));
   };
 
   const signOut = async () => {
-    await cancelAllReminders();
+    await unregisterPush();
     await firebaseSignOut(auth);
   };
 
@@ -94,11 +114,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const saveProfile = async ({ name, phone }: Profile) => {
     if (!user) throw new Error('Ikke innlogget');
-    await setDoc(doc(db, 'users', user.uid), { name: name.trim(), phone: phone.trim(), updatedAt: serverTimestamp() });
+    // merge, så innstillingene for varsler blir liggende
+    await setDoc(doc(db, 'users', user.uid), { name: name.trim(), phone: phone.trim(), updatedAt: serverTimestamp() }, { merge: true });
     if (name.trim() !== user.displayName) {
       await updateProfile(user, { displayName: name.trim() });
       setAuthName(name.trim());
     }
+  };
+
+  const savePreferences = async (changes: Partial<Preferences>) => {
+    if (!user) throw new Error('Ikke innlogget');
+    await setDoc(doc(db, 'users', user.uid), { ...changes, updatedAt: serverTimestamp() }, { merge: true });
+  };
+
+  const sendVerificationEmail = async () => {
+    if (!user) throw new Error('Ikke innlogget');
+    await sendEmailVerification(user);
+  };
+
+  const refreshEmailVerified = async () => {
+    if (!user) return false;
+    await reload(user);
+    setEmailVerified(user.emailVerified);
+    return user.emailVerified;
   };
 
   const reauthenticate = async (password: string) => {
@@ -114,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     favorites.forEach((favorite) => batch.delete(favorite.ref));
     await batch.commit();
     await deleteDoc(doc(db, 'users', user.uid));
-    await cancelAllReminders();
+    await unregisterPush();
     await deleteUser(user);
   };
 
@@ -124,12 +162,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         displayName,
+        preferences,
+        emailVerified,
         initializing,
         signIn,
         signUp,
         signOut,
         resetPassword,
         saveProfile,
+        savePreferences,
+        sendVerificationEmail,
+        refreshEmailVerified,
         reauthenticate,
         deleteAccount,
       }}

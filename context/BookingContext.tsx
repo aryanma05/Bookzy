@@ -13,7 +13,7 @@ import {
   type DocumentReference,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { cancelReminder, scheduleReminder } from '@/lib/reminders';
+import { registerForPush } from '@/lib/push';
 import { slotId, slotTimesFor, toStartDate } from '@/lib/schedule';
 import type { Salon, Service } from '@/lib/salons';
 import { useAuth } from './AuthContext';
@@ -122,10 +122,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     return onSnapshot(
       bookingsQuery,
       (result) => {
-        // Avbestiller salongen, skal ikke kunden få påminnelse om timen
-        result.docChanges().forEach((change) => {
-          if (change.type === 'modified' && change.doc.data().status === 'cancelled') cancelReminder(change.doc.id);
-        });
         const bookings = result.docs
           .map((booking) => toBooking(booking.id, booking.data()))
           .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
@@ -188,6 +184,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         slotIds: chosen.refs.map((ref) => ref.id),
         status: 'confirmed',
         createdAt: serverTimestamp(),
+        // Så varslene kan si «flyttet» i stedet for én avbestilling og én ny booking
+        ...(replaces ? { replacesBookingId: replaces.id } : {}),
       });
 
       const staff = chosen.staff;
@@ -201,8 +199,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    if (replaces) await cancelReminder(replaces.id);
-    await scheduleReminder({ id: bookingRef.id, salonName: salon.name, serviceName: service.name, time, startAt });
+    // Påminnelsen sendes fra serveren. Rett etter en booking er et naturlig tidspunkt å spørre om varsler.
+    registerForPush(user.uid, { ask: true });
     return bookingRef.id;
   };
 
@@ -215,7 +213,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     // Frigjør lukene så andre kan booke tiden.
     booking.slotIds.forEach((id) => batch.delete(doc(db, 'slots', id)));
     await batch.commit();
-    await cancelReminder(booking.id);
   };
 
   return (
