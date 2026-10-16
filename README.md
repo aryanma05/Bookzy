@@ -1,6 +1,6 @@
 # Bookzy
 
-Bookzy is a booking app for salons — hairdressers, barbers, nail studios, massage and skincare. Instead of booking through DMs and phone calls, customers find a place nearby, pick a service, a staff member and a free time, and the appointment is confirmed straight away.
+Bookzy is a booking app for any kind of salon - hairdressers, barbers, nail studios, massage and skincare. Instead of booking through DMs and phone calls, customers find a place nearby, pick a service, a staff member and a free time, and the appointment is confirmed straight away.
 
 The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and the web. The UI is in Norwegian.
 
