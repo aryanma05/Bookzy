@@ -52,15 +52,10 @@ Expo Go works for most things. Reminders and location are best tested in a devel
 
 Each salon gets a link to its page, `<web address>/salon/<id>`, to put in the Instagram bio or send by SMS. The link is shown under *Bookinglenke* in business mode and is also included when customers share a salon.
 
-The web version is hosted on Firebase Hosting:
+The web version is hosted on Firebase Hosting at `https://bookzy.no`. The address is set in two places: `EXPO_PUBLIC_APP_URL` in `.env` for the app, and `APP_URL` in `functions/.env.timeflyt` for links in emails. It is built into the app when it is exported, so if the domain ever changes, update both and deploy the web version, the functions and the apps again.
 
-1. Run `npm run deploy:web`. It exports the web version to `dist/` and deploys it. The address is shown at the end of the output, usually `https://timeflyt.web.app`. If the deploy says the site doesn't exist, open Hosting in Firebase Console and click *Get started* once.
-2. **Optional:** add your own domain under Firebase Console → Hosting → *Add custom domain*.
-3. Set the address in `.env` and deploy again, since the value is built into the app when it is exported. Restart Expo to use it in development, and set it before building the iOS and Android apps too:
-   ```
-   EXPO_PUBLIC_APP_URL=https://timeflyt.web.app
-   ```
-4. Set `APP_URL` in `functions/.env.timeflyt` to the same address and run `npm run deploy:functions`, so links in emails point to the web version.
+1. Run `npm run deploy:web`. It exports the web version to `dist/` and deploys it. If the deploy says the site doesn't exist, open Hosting in Firebase Console and click *Get started* once.
+2. Connect the domain (one time): Firebase Console → Hosting → *Add custom domain* → `bookzy.no`, and add the DNS records it shows at your domain registrar. Add `www.bookzy.no` too and let it redirect to `bookzy.no`. The certificate can take a few hours; until then the site is only at `https://timeflyt.web.app`.
 
 Without `EXPO_PUBLIC_APP_URL`, salons are shared without a link and the button in business mode is hidden.
 
@@ -70,14 +65,14 @@ The web version is a set of static pages. Pages with an id in the address, such 
 
 Notifications are sent by Cloud Functions in `functions/`. They need the Blaze plan (pay as you go – the free quota covers a small business with plenty to spare).
 
-1. **Email:** create an account at [Resend](https://resend.com), verify the domain you will send from and create an API key.
+1. **Email:** create an account at [Resend](https://resend.com), verify `bookzy.no` (emails are sent from `varsler@bookzy.no`) and create an API key.
 2. **Push:** run `npx eas-cli init` to create an Expo project (this adds `extra.eas.projectId` to `app.json`). Set up push credentials with `npx eas-cli credentials` (an FCM V1 key for Android and an APNs key for iOS – see [Expo's guide](https://docs.expo.dev/push-notifications/push-notifications-setup/)). On [expo.dev](https://expo.dev), turn on *Enhanced security for push notifications* for the project and create an access token. Push needs a development build; it doesn't work in Expo Go on Android.
 3. **Secrets:** they are stored in Google Secret Manager, never in the code:
    ```bash
    firebase functions:secrets:set RESEND_API_KEY
    firebase functions:secrets:set EXPO_ACCESS_TOKEN
    ```
-4. **Deploy:** `npm --prefix functions install`, then `npm run deploy:firestore` and `npm run deploy:functions`. The first deploy asks for `EMAIL_FROM` (for example `Bookzy <varsler@yourdomain.no>`) and `APP_URL` (the address of the web version, used for links in emails – can be left empty) and saves them in `functions/.env.timeflyt`.
+4. **Deploy:** `npm --prefix functions install`, then `npm run deploy:firestore` and `npm run deploy:functions`. The sender (`EMAIL_FROM`) and the address used for links in emails (`APP_URL`) are in `functions/.env.timeflyt`.
 5. **Optional:** turn on a TTL policy on the `expireAt` field for the `sentNotifications` and `pushTickets` collections (Firestore → TTL) so old entries are deleted automatically.
 
 How it works:
