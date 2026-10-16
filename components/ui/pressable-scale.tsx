@@ -3,7 +3,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const SPRING = { damping: 18, stiffness: 320, mass: 0.6 };
+const SPRING = { damping: 25, stiffness: 320, mass: 0.6 };
 
 type PressableScaleProps = Omit<PressableProps, 'style'> & {
   style?: StyleProp<ViewStyle>;

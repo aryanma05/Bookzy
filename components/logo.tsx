@@ -1,7 +1,9 @@
 import { Image } from 'expo-image';
+import { View } from 'react-native';
+import { colors, fonts } from '@/constants/theme';
+import { Text } from './ui/text';
 
 const MARK_RATIO = 721 / 526;
-const LOGO_RATIO = 1082 / 832;
 
 export function LogoMark({ height = 28, white = false }: { height?: number; white?: boolean }) {
   return (
@@ -15,12 +17,21 @@ export function LogoMark({ height = 28, white = false }: { height?: number; whit
 }
 
 export function Logo({ height = 120, white = false }: { height?: number; white?: boolean }) {
+  const fontSize = height * 0.3;
   return (
-    <Image
-      source={white ? require('@/assets/images/logo-white.png') : require('@/assets/images/logo.png')}
-      style={{ width: height * LOGO_RATIO, height }}
-      contentFit="contain"
-      accessibilityLabel="Bookzy"
-    />
+    <View style={{ height, alignItems: 'center', justifyContent: 'center' }} accessible accessibilityRole="image" accessibilityLabel="Bookzy">
+      <LogoMark height={height * 0.6} white={white} />
+      <Text
+        style={{
+          fontFamily: fonts.semibold,
+          fontSize,
+          lineHeight: fontSize * 1.2,
+          letterSpacing: -fontSize * 0.02,
+          color: white ? colors.surface : colors.ink,
+        }}
+      >
+        Bookzy
+      </Text>
+    </View>
   );
 }
