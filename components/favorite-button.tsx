@@ -25,7 +25,7 @@ export function FavoriteButton({ salonId, size = 36, floating = true }: { salonI
       return;
     }
     haptics.tap();
-    scale.set(withSequence(withSpring(1.3, { damping: 8, stiffness: 400 }), withSpring(1)));
+    scale.set(withSequence(withSpring(1.25, { damping: 18, stiffness: 400, mass: 1 }), withSpring(1)));
     toggleFavorite(salonId).catch(() => showAlert('Noe gikk galt', 'Kunne ikke oppdatere favorittene dine.'));
   };
 

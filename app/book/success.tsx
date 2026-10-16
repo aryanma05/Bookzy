@@ -46,7 +46,7 @@ export default function BookingSuccessScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.center}>
-        <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.checkCircle}>
+        <Animated.View entering={ZoomIn.springify().damping(80)} style={styles.checkCircle}>
           <Ionicons name="checkmark" size={52} color="#FFFFFF" />
         </Animated.View>
 
