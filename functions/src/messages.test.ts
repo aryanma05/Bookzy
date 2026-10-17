@@ -109,3 +109,52 @@ describe('til kunden', () => {
     assert.doesNotMatch(messages.cancelledBySalonEmail(booking({ salonPhone: '' }), null).text, /ringe/);
   });
 });
+
+describe('SMS til kunder som booket med mobilnummer', () => {
+  // Firestore-ID-er er 20 tegn
+  const bookingLink = 'https://bookzy.no/booking/AbCdEfGhIjKlMnOpQrSt';
+  const salonLink = 'https://bookzy.no/salon/AbCdEfGhIjKlMnOpQrSt';
+
+  test('bekreftelse', () => {
+    assert.equal(
+      messages.bookingSms(booking(), bookingLink),
+      `Bekreftet: Herreklipp hos Salong Nord lørdag 10. oktober kl 10:00. Se timen: ${bookingLink}`
+    );
+  });
+
+  test('flyttet time', () => {
+    assert.equal(
+      messages.bookingSms(booking(), null, booking({ date: '2026-10-08', time: '12:00' })),
+      'Flyttet: Herreklipp hos Salong Nord lørdag 10. oktober kl 10:00.'
+    );
+  });
+
+  test('salongen avlyser', () => {
+    assert.equal(
+      messages.cancelledBySalonSms(booking(), null),
+      'Salong Nord har avlyst Herreklipp lørdag 10. oktober kl 10:00. Lurer du på noe, ring 22000000.'
+    );
+    assert.doesNotMatch(messages.cancelledBySalonSms(booking({ salonPhone: '' }), null), /ring/);
+  });
+
+  test('påminnelse', () => {
+    assert.equal(
+      messages.reminderSms(booking(), NOW, null),
+      'Påminnelse: Herreklipp hos Salong Nord i morgen kl 10:00. Kommer du ikke, ring 22000000.'
+    );
+  });
+
+  test('får plass i én SMS', () => {
+    const texts = [
+      messages.bookingSms(booking(), bookingLink),
+      messages.bookingSms(booking(), bookingLink, booking()),
+      messages.cancelledBySalonSms(booking(), salonLink),
+      messages.reminderSms(booking(), NOW, bookingLink),
+    ];
+    for (const text of texts) {
+      assert.ok(text.length <= 160, `${text.length} tegn: ${text}`);
+      // Ett tegn utenfor SMS-alfabetet (f.eks. – eller «») gjør plassen i hver SMS mer enn halvert
+      assert.match(text, /^[\x20-\x7EæøåÆØÅ]*$/);
+    }
+  });
+});

@@ -9,7 +9,16 @@ export const expoAccessToken = defineSecret('EXPO_ACCESS_TOKEN', {
   description: 'Tilgangstoken fra expo.dev. Slå på «Enhanced security for push notifications» for prosjektet.',
 });
 
+export const sveveApiKey = defineSecret('SVEVE_API_KEY', {
+  description: 'API-passordet fra Sveve (sveve.no → API → API-nøkkel) for å sende SMS.',
+});
+
 // Tom standardverdi, så emulatoren starter uten oppsett. `firebase deploy` spør likevel.
+export const sveveUser = defineString('SVEVE_USER', {
+  default: '',
+  description: 'Brukernavnet hos Sveve. SMS sendes ikke før det er satt.',
+});
+
 export const emailFrom = defineString('EMAIL_FROM', {
   default: '',
   description: 'Avsender, f.eks. «Bookzy <varsler@dittdomene.no>». Domenet må være verifisert hos Resend.',

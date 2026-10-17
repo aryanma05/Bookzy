@@ -1,5 +1,5 @@
 import { logger } from 'firebase-functions';
-import { getAuth } from 'firebase-admin/auth';
+import { getAuth, type UserRecord } from 'firebase-admin/auth';
 import { emailFrom, isEmulator, resendApiKey } from './config';
 import { clean } from './format';
 import { postJson } from './http';
@@ -10,9 +10,14 @@ import type { Email } from './messages';
  * registrert seg med en annens adresse og fått oss til å sende e-post dit.
  */
 export async function verifiedEmail(uid: string): Promise<string | null> {
+  const user = await findUser(uid);
+  return user?.email && user.emailVerified && !user.disabled ? user.email : null;
+}
+
+/** Auth-brukeren, eller null hvis kontoen er slettet. */
+export async function findUser(uid: string): Promise<UserRecord | null> {
   try {
-    const user = await getAuth().getUser(uid);
-    return user.email && user.emailVerified && !user.disabled ? user.email : null;
+    return await getAuth().getUser(uid);
   } catch (error) {
     if ((error as { code?: string }).code === 'auth/user-not-found') return null;
     throw error;
