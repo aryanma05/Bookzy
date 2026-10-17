@@ -12,6 +12,7 @@ import {
   type DocumentData,
   type DocumentReference,
 } from 'firebase/firestore';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { registerForPush } from '@/lib/push';
 import { slotId, slotTimesFor, toStartDate } from '@/lib/schedule';
@@ -53,6 +54,7 @@ export type NewBooking = {
   staffId: string | null;
   date: string;
   time: string;
+  name: string;
   phone: string;
   note: string;
   /** Satt når en eksisterende time flyttes – den avbestilles i samme transaksjon. */
@@ -109,7 +111,7 @@ export function canCancel(booking: Booking, now: Date) {
 type BookingSnapshot = { uid: string; bookings: Booking[]; error: string | null };
 
 export function BookingProvider({ children }: { children: React.ReactNode }) {
-  const { user, displayName } = useAuth();
+  const { user } = useAuth();
   const uid = user?.uid ?? null;
   const [snapshot, setSnapshot] = useState<BookingSnapshot | null>(null);
 
@@ -136,8 +138,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const current = uid && snapshot?.uid === uid ? snapshot : null;
 
-  const createBooking = async ({ salon, service, staffId, date, time, phone, note, replaces }: NewBooking) => {
-    if (!user) throw new Error('Du må være logget inn for å booke.');
+  const createBooking = async ({ salon, service, staffId, date, time, name, phone, note, replaces }: NewBooking) => {
+    // Fra Firebase, ikke state – kunden kan ha logget inn med SMS-koden rett før
+    const current = auth.currentUser;
+    if (!current) throw new Error('Du må være logget inn for å booke.');
 
     const bookingRef = doc(collection(db, 'bookings'));
     const times = slotTimesFor(time, service.durationMin);
@@ -164,8 +168,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       if (!chosen) throw new SlotTakenError();
 
       transaction.set(bookingRef, {
-        userId: user.uid,
-        customerName: displayName,
+        userId: current.uid,
+        customerName: name.trim(),
         customerPhone: phone.trim(),
         note: note.trim(),
         salonId: salon.id,
@@ -200,7 +204,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Påminnelsen sendes fra serveren. Rett etter en booking er et naturlig tidspunkt å spørre om varsler.
-    registerForPush(user.uid, { ask: true });
+    registerForPush(current.uid, { ask: true });
     return bookingRef.id;
   };
 

@@ -131,6 +131,11 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time
         && request.resource.data.customerPhone is string
         && request.resource.data.customerPhone.size() <= 20
+        // Logget inn med SMS: salongen skal få nummeret som faktisk er bekreftet
+        && (request.auth.token.get('phone_number', null) == null
+          || request.resource.data.customerPhone == request.auth.token.phone_number)
+        && request.resource.data.customerName is string
+        && request.resource.data.customerName.size() <= 80
         && request.resource.data.note is string
         && request.resource.data.note.size() <= 500
         && request.resource.data.durationMin is int

@@ -1,12 +1,20 @@
 // Fyller Firestore med testsalonger og eksempelanmeldelser.
-//   npm run seed           → den ekte databasen (krever serviceAccountKey.json i prosjektroten,
-//                            hentes fra Firebase Console → Prosjektinnstillinger → Tjenestekontoer)
 //   npm run seed:emulator  → lokal emulator (npm run emulators må kjøre), inkludert en testkonto med timer
+//   npm run seed:remove    → fjerner eksempelsalongene, -anmeldelsene og timene hos dem fra den ekte databasen
+//                            (krever serviceAccountKey.json i prosjektroten, hentes fra Firebase Console →
+//                            Prosjektinnstillinger → Tjenestekontoer). Salonger med eier røres aldri.
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 
 const useEmulator = process.argv.includes('--emulator');
+const removeDemo = process.argv.includes('--remove');
+
+// Ekte kunder skal aldri se salonger med oppdiktede nummer og anmeldelser
+if (!useEmulator && !removeDemo) {
+  console.error('Eksempelsalonger legges bare i emulatoren: npm run seed:emulator. Fjern dem fra den ekte databasen med npm run seed:remove.');
+  process.exit(1);
+}
 
 // Testkontoer som bare finnes i den lokale Auth-emulatoren
 const DEMO_USER = { email: 'kunde@bookzy.test', password: 'bookzy-test', displayName: 'Test Kunde' };
@@ -295,7 +303,7 @@ function buildReviews(salons) {
 }
 
 async function seedSalons() {
-  const salons = buildSalons();
+  const salons = removeDemo ? [] : buildSalons();
   const reviews = buildReviews(salons);
   const batch = db.batch();
 
@@ -312,9 +320,18 @@ async function seedSalons() {
   const staleReviews = (await db.collection('reviews').listDocuments()).filter(
     (ref) => ref.id.startsWith('seed_') && !reviewIds.has(ref.id)
   );
-  [...staleSalons, ...staleReviews].forEach((ref) => batch.delete(ref));
-
   await batch.commit();
+
+  // bulkWriter, siden det kan bli flere enn 500 dokumenter (grensen for en batch)
+  const writer = db.bulkWriter();
+  [...staleSalons, ...staleReviews].forEach((ref) => writer.delete(ref));
+  // Timene hos salonger som fjernes, så ingen ser en time hos en salong som ikke finnes
+  for (const salon of staleSalons) {
+    for (const name of ['bookings', 'slots']) {
+      (await db.collection(name).where('salonId', '==', salon.id).get()).forEach((item) => writer.delete(item.ref));
+    }
+  }
+  await writer.close();
   console.log(`Lagret ${salons.length} salonger og ${reviews.length} anmeldelser, fjernet ${staleSalons.length} gamle salonger.`);
   return salons;
 }
@@ -463,7 +480,7 @@ async function seedDemoAccounts(salons) {
 }
 
 seedSalons()
-  .then((salons) => (useEmulator ? seedDemoAccounts(salons) : undefined))
+  .then((salons) => (useEmulator && !removeDemo ? seedDemoAccounts(salons) : undefined))
   .catch((error) => {
     console.error(error);
     process.exit(1);

@@ -13,6 +13,9 @@ import { useBusiness } from '@/context/BusinessContext';
 import { useNow } from '@/hooks/use-now';
 import { showAlert } from '@/lib/alert';
 
+// Firebase krever nylig innlogging for å slette en konto. Med SMS har vi ikke passord å spørre om.
+const RECENT_SIGN_IN_MS = 4 * 60 * 1000;
+
 const CONSEQUENCES = [
   'Profilen, favorittene og innloggingen din slettes for godt.',
   'Kommende timer som fortsatt kan avbestilles, avbestilles automatisk.',
@@ -22,7 +25,8 @@ const CONSEQUENCES = [
 export default function DeleteAccountScreen() {
   const router = useRouter();
   const now = useNow();
-  const { reauthenticate, deleteAccount } = useAuth();
+  const { user, reauthenticate, deleteAccount } = useAuth();
+  const usesPassword = !!user?.email;
   const { bookings, cancelBooking } = useBookings();
   const { salon, saveSalon } = useBusiness();
   const [password, setPassword] = useState('');
@@ -33,11 +37,16 @@ export default function DeleteAccountScreen() {
     : CONSEQUENCES;
 
   const remove = async () => {
-    if (!password || deleting) return;
+    if ((usesPassword && !password) || deleting) return;
     setError(null);
+    // Sjekkes før noe avbestilles, så kontoen ikke blir halvveis slettet
+    if (!usesPassword && Date.now() - Date.parse(user?.metadata.lastSignInTime ?? '') > RECENT_SIGN_IN_MS) {
+      setError('Av sikkerhetshensyn må du logge ut og inn igjen med SMS-koden før du sletter kontoen.');
+      return;
+    }
     setDeleting(true);
     try {
-      await reauthenticate(password);
+      if (usesPassword) await reauthenticate(password);
       // Uten eier er det ingen som ser bookingene, så siden skjules
       if (salon?.published) await saveSalon({ published: false });
       for (const booking of bookings.filter((item) => canCancel(item, now))) {
@@ -72,16 +81,20 @@ export default function DeleteAccountScreen() {
               </View>
             ))}
           </View>
-          <TextField
-            label="Skriv inn passordet ditt for å bekrefte"
-            icon="lock-closed-outline"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoComplete="current-password"
-            error={error}
-          />
-          <Button title="Slett kontoen min" variant="danger" disabled={!password} loading={deleting} onPress={remove} />
+          {usesPassword ? (
+            <TextField
+              label="Skriv inn passordet ditt for å bekrefte"
+              icon="lock-closed-outline"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="current-password"
+              error={error}
+            />
+          ) : (
+            error && <Text variant="caption" color={colors.danger}>{error}</Text>
+          )}
+          <Button title="Slett kontoen min" variant="danger" disabled={usesPassword && !password} loading={deleting} onPress={remove} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

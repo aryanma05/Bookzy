@@ -15,6 +15,7 @@ import { useBusiness } from '@/context/BusinessContext';
 import { useFavorites } from '@/context/FavoritesContext';
 import { useEmailVerification } from '@/hooks/use-email-verification';
 import { showAlert } from '@/lib/alert';
+import { formatPhone } from '@/lib/phone';
 import { pushSupported, registerForPush } from '@/lib/push';
 
 function useReminderSetting() {
@@ -75,8 +76,8 @@ export default function ProfileScreen() {
           <Avatar name={displayName || '?'} size={64} />
           <View style={styles.profileText}>
             <Text variant="heading" numberOfLines={1}>{displayName}</Text>
-            <Text variant="caption" numberOfLines={1}>{user.email}</Text>
-            {profile?.phone ? <Text variant="caption">{profile.phone}</Text> : null}
+            <Text variant="caption" numberOfLines={1}>{user.email ?? formatPhone(user.phoneNumber ?? '')}</Text>
+            {user.email && profile?.phone ? <Text variant="caption">{profile.phone}</Text> : null}
           </View>
           <Button title="Rediger" size="sm" variant="secondary" onPress={() => router.push('/account/edit')} />
         </View>
@@ -95,12 +96,14 @@ export default function ProfileScreen() {
         <Section
           title="Konto"
           footer={
-            verification.verified
-              ? 'Bekreftelser og påminnelser sendes på e-post. Har du appen, kommer påminnelsen som varsel.'
-              : 'Bekreft e-postadressen for å få bekreftelser og påminnelser på e-post.'
+            !user.email
+              ? 'Du er logget inn med mobilnummeret ditt. Har du appen, kommer påminnelsen som varsel.'
+              : verification.verified
+                ? 'Bekreftelser og påminnelser sendes på e-post. Har du appen, kommer påminnelsen som varsel.'
+                : 'Bekreft e-postadressen for å få bekreftelser og påminnelser på e-post.'
           }
         >
-          {!verification.verified && (
+          {user.email && !verification.verified && (
             <ListRow icon="mail-unread-outline" label="Bekreft e-postadressen" value="Send lenke" onPress={verification.send} />
           )}
           <ListRow

@@ -5,6 +5,7 @@ import {
   getReactNativePersistence,
   initializeAuth,
   type Auth,
+  type ConfirmationResult,
 } from 'firebase/auth';
 import { app, emulatorHost } from './firebase';
 
@@ -22,4 +23,11 @@ export const auth = createAuth();
 
 if (emulatorHost && !auth.emulatorConfig) {
   connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+}
+
+// shortcut: SMS-innlogging krever @react-native-firebase i appen, så her logger kunden inn med e-post. Legg det til hvis appen skal ha SMS.
+export const smsSignInSupported = false;
+
+export function sendSmsCode(_phoneNumber: string): Promise<ConfirmationResult> {
+  return Promise.reject(new Error('SMS-innlogging finnes bare på nettet.'));
 }

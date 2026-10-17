@@ -219,6 +219,12 @@ describe('opprette booking', () => {
     await assertFails(book(db('alice'), 'alice', { overrides: { status: 'cancelled' } }).commit());
   });
 
+  test('logget inn med SMS: bookingen må ha det bekreftede nummeret', async () => {
+    const firestore = testEnv.authenticatedContext('carl', { phone_number: '+4791234567' }).firestore();
+    await assertFails(book(firestore, 'carl', { overrides: { customerPhone: '+4740000000' } }).commit());
+    await assertSucceeds(book(firestore, 'carl', { overrides: { customerPhone: '+4791234567' } }).commit());
+  });
+
   test('kan ikke booke hos en salong som ikke finnes', async () => {
     await assertFails(book(db('alice'), 'alice', { overrides: { salonId: 'finnes-ikke' } }).commit());
   });
