@@ -1,4 +1,4 @@
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
@@ -28,7 +28,9 @@ export default function BookingSuccessScreen() {
   const insets = useSafeAreaInsets();
   const now = useNow();
   const { bookingId, moved } = useLocalSearchParams<{ bookingId: string; moved?: string }>();
-  const { preferences, emailVerified } = useAuth();
+  const { user, preferences, emailVerified } = useAuth();
+  // På nettet kommer påminnelsen bare på e-post, og den har ikke de som booket med mobilnummer
+  const remindable = preferences.reminders && (emailVerified || Platform.OS !== 'web');
   const { bookings } = useBookings();
   const booking = bookings.find((item) => item.id === bookingId);
 
@@ -55,7 +57,8 @@ export default function BookingSuccessScreen() {
           <Text variant="body" color={colors.textSecondary} align="center">
             Du finner den under Timer.
             {emailVerified ? ' Bekreftelsen er sendt på e-post.' : ''}
-            {preferences.reminders ? reminderText(booking, now) : ''}
+            {remindable ? reminderText(booking, now) : ''}
+            {user && !user.email ? ' Logg inn med mobilnummeret ditt for å finne den igjen senere.' : ''}
           </Text>
         </Animated.View>
 

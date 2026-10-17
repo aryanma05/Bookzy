@@ -12,7 +12,7 @@ export function useEmailVerification() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user && !emailVerified) refreshEmailVerified().catch(() => {});
+      if (user?.email && !emailVerified) refreshEmailVerified().catch(() => {});
     }, [user, emailVerified, refreshEmailVerified])
   );
 

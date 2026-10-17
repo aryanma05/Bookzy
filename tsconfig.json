@@ -18,6 +18,6 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  // Cloud Functions har sin egen tsconfig.json
-  "exclude": ["node_modules", "functions"]
+  // Cloud Functions har sin egen tsconfig.json. Testene kjøres rett i Node (npm run test:app).
+  "exclude": ["node_modules", "functions", "**/*.test.ts"]
 }

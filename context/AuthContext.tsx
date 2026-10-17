@@ -11,6 +11,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
+  type ConfirmationResult,
   type User,
 } from 'firebase/auth';
 import { collection, deleteDoc, doc, getDocs, onSnapshot, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
@@ -38,6 +39,8 @@ type AuthContextType = {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   saveProfile: (profile: Profile) => Promise<void>;
+  /** Logger inn med koden fra SMS-en (se sendSmsCode i lib/auth). Et navn lagres på profilen. */
+  confirmSmsCode: (confirmation: ConfirmationResult, code: string, name: string) => Promise<void>;
   savePreferences: (changes: Partial<Preferences>) => Promise<void>;
   sendVerificationEmail: () => Promise<void>;
   /** Sjekker på nytt om brukeren har trykket på lenken i e-posten. */
@@ -112,14 +115,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = (email: string) => sendPasswordResetEmail(auth, email.trim());
 
-  const saveProfile = async ({ name, phone }: Profile) => {
-    if (!user) throw new Error('Ikke innlogget');
+  const writeProfile = async (target: User, { name, phone }: Profile) => {
     // merge, så innstillingene for varsler blir liggende
-    await setDoc(doc(db, 'users', user.uid), { name: name.trim(), phone: phone.trim(), updatedAt: serverTimestamp() }, { merge: true });
-    if (name.trim() !== user.displayName) {
-      await updateProfile(user, { displayName: name.trim() });
+    await setDoc(doc(db, 'users', target.uid), { name: name.trim(), phone: phone.trim(), updatedAt: serverTimestamp() }, { merge: true });
+    if (name.trim() !== target.displayName) {
+      await updateProfile(target, { displayName: name.trim() });
       setAuthName(name.trim());
     }
+  };
+
+  const saveProfile = async (next: Profile) => {
+    if (!user) throw new Error('Ikke innlogget');
+    await writeProfile(user, next);
+  };
+
+  // Bruker brukeren fra innloggingen, ikke state – den er ikke oppdatert ennå når kunden booker rett etterpå
+  const confirmSmsCode = async (confirmation: ConfirmationResult, code: string, name: string) => {
+    const { user: signedIn } = await confirmation.confirm(code.trim());
+    if (name.trim()) await writeProfile(signedIn, { name, phone: signedIn.phoneNumber ?? '' });
   };
 
   const savePreferences = async (changes: Partial<Preferences>) => {
@@ -170,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         resetPassword,
         saveProfile,
+        confirmSmsCode,
         savePreferences,
         sendVerificationEmail,
         refreshEmailVerified,
@@ -205,13 +219,22 @@ export function authErrorMessage(error: unknown): string {
     case 'auth/weak-password':
       return 'Passordet må være minst 6 tegn.';
     case 'auth/too-many-requests':
+    case 'auth/quota-exceeded':
       return 'For mange forsøk. Vent litt og prøv igjen.';
+    case 'auth/invalid-phone-number':
+      return 'Mobilnummeret er ikke gyldig.';
+    case 'auth/invalid-verification-code':
+      return 'Feil kode. Sjekk SMS-en og prøv igjen.';
+    case 'auth/code-expired':
+      return 'Koden er utløpt. Trykk «Endre nummer» og send en ny.';
+    case 'auth/captcha-check-failed':
+      return 'Vi fikk ikke bekreftet at du ikke er en robot. Last inn siden på nytt og prøv igjen.';
     case 'auth/network-request-failed':
       return 'Ingen nettverksforbindelse. Prøv igjen.';
     case 'auth/requires-recent-login':
       return 'Av sikkerhetshensyn må du logge inn på nytt før du gjør dette.';
     case 'auth/operation-not-allowed':
-      return 'Innlogging med e-post er ikke slått på i Firebase-prosjektet ennå.';
+      return 'Denne innloggingsmåten er ikke slått på i Firebase-prosjektet ennå.';
     default:
       return 'Noe gikk galt. Prøv igjen.';
   }

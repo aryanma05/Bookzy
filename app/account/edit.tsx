@@ -11,6 +11,7 @@ import { colors } from '@/constants/theme';
 import { authErrorMessage, useAuth } from '@/context/AuthContext';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
+import { formatPhone } from '@/lib/phone';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -23,7 +24,9 @@ export default function EditProfileScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const nameValue = name ?? (profile?.name || displayName);
-  const phoneValue = phone ?? profile?.phone ?? '';
+  // Logget inn med SMS: nummeret er bekreftet og følger innloggingen
+  const verifiedPhone = user?.phoneNumber ?? null;
+  const phoneValue = verifiedPhone ?? phone ?? profile?.phone ?? '';
 
   const save = async () => {
     if (!nameValue.trim()) {
@@ -63,14 +66,19 @@ export default function EditProfileScreen() {
           <TextField
             label="Telefonnummer"
             icon="call-outline"
-            value={phoneValue}
+            value={verifiedPhone ? formatPhone(verifiedPhone) : phoneValue}
             onChangeText={setPhone}
+            editable={!verifiedPhone}
             keyboardType="phone-pad"
             autoComplete="tel"
-            hint="Brukes av salongene hvis noe endrer seg med timen din."
+            hint={verifiedPhone ? 'Bekreftet med SMS. Du logger inn med dette nummeret.' : 'Brukes av salongene hvis noe endrer seg med timen din.'}
           />
-          <TextField label="E-post" icon="mail-outline" value={user?.email ?? ''} editable={false} />
-          <Button title="Endre passord" variant="ghost" size="md" onPress={changePassword} />
+          {user?.email && (
+            <>
+              <TextField label="E-post" icon="mail-outline" value={user.email} editable={false} />
+              <Button title="Endre passord" variant="ghost" size="md" onPress={changePassword} />
+            </>
+          )}
           <Text variant="caption" color={colors.textMuted} align="center">
             Vi deler bare navn og telefonnummer med salongene du booker hos.
           </Text>

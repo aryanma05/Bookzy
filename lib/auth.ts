@@ -1,4 +1,6 @@
-import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, signInWithPhoneNumber, type ApplicationVerifier } from 'firebase/auth';
+// @ts-expect-error Finnes bare i nettlesertypene, og tsconfig peker på React Native-typene (se paths der)
+import { RecaptchaVerifier } from 'firebase/auth';
 import { app, emulatorHost } from './firebase';
 
 // Web: Firebase lagrer innloggingen i nettleseren selv. iOS/Android bruker auth.native.ts.
@@ -6,4 +8,16 @@ export const auth = getAuth(app);
 
 if (emulatorHost) {
   connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });
+}
+
+/** Innlogging med kode på SMS. Bare på nettet – i appen trenger Firebase en native modul for det. */
+export const smsSignInSupported = true;
+
+let recaptcha: ApplicationVerifier | undefined;
+
+/** Sender en engangskode til nummeret (+47…). Usynlig reCAPTCHA hindrer roboter i å sende SMS-er på vår regning. */
+export function sendSmsCode(phoneNumber: string) {
+  // Firebase nullstiller den etter hvert forsøk, så samme kan brukes for «send ny kode»
+  recaptcha ??= new RecaptchaVerifier(auth, document.body.appendChild(document.createElement('div')), { size: 'invisible' });
+  return signInWithPhoneNumber(auth, phoneNumber, recaptcha);
 }

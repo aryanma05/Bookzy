@@ -8,14 +8,15 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "seed": "node ./scripts/seedSalons.js",
+    "seed:remove": "node ./scripts/seedSalons.js --remove",
     "seed:emulator": "node ./scripts/seedSalons.js --emulator",
     "emulators": "npm --prefix functions run build && firebase emulators:start --only auth,firestore,functions --project timeflyt",
     "deploy:firestore": "firebase deploy --only firestore",
     "deploy:functions": "firebase deploy --only functions",
     "deploy:web": "expo export -p web --clear && firebase deploy --only hosting",
     "test:rules": "node ./scripts/test-rules.js",
-    "test:functions": "npm --prefix functions test"
+    "test:functions": "npm --prefix functions test",
+    "test:app": "node --test lib/*.test.ts"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

@@ -78,13 +78,16 @@ export default function BusinessStartScreen() {
           ))}
         </View>
 
-        {user ? (
+        {/* Varsler om nye bookinger går på e-post, så bedrifter kan ikke bruke en konto med bare mobilnummer */}
+        {user?.email ? (
           <Button title="Registrer bedriften" icon="arrow-forward" onPress={() => router.push('/business/register')} />
         ) : (
           <View style={styles.signIn}>
-            <Button title="Logg inn for å starte" onPress={() => router.push('/login')} />
+            <Button title={user ? 'Logg inn med e-post' : 'Logg inn for å starte'} onPress={() => router.push('/login')} />
             <Text variant="caption" align="center" color={colors.textMuted}>
-              Du bruker samme konto som når du booker timer selv.
+              {user
+                ? 'Bedrifter bruker e-post, så du får beskjed når noen booker.'
+                : 'Du bruker samme konto som når du booker timer selv.'}
             </Text>
           </View>
         )}

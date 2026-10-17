@@ -13,6 +13,7 @@ import { useBookings } from '@/context/BookingContext';
 import { useSalons } from '@/context/SalonsContext';
 import { useNow } from '@/hooks/use-now';
 import { useTakenSlots } from '@/hooks/use-taken-slots';
+import { smsSignInSupported } from '@/lib/auth';
 import { formatDuration, formatPrice } from '@/lib/salons';
 import {
   addDays,
@@ -93,7 +94,8 @@ export default function ChooseTimeScreen() {
 
   const proceed = () => {
     if (!time) return;
-    if (!user) {
+    // På nettet bekrefter kunden nummeret med SMS på neste side, uten å lage konto først
+    if (!user && !smsSignInSupported) {
       router.push('/login');
       return;
     }
@@ -182,7 +184,7 @@ export default function ChooseTimeScreen() {
           <Text variant="label">{time ? `${formatDay(date, now)} kl ${time}` : 'Velg et tidspunkt'}</Text>
           <Text variant="caption">{formatPrice(service.priceNok)} · betales i salongen</Text>
         </View>
-        <Button title={user ? 'Fortsett' : 'Logg inn'} disabled={!time} onPress={proceed} style={styles.footerButton} />
+        <Button title={user || smsSignInSupported ? 'Fortsett' : 'Logg inn'} disabled={!time} onPress={proceed} style={styles.footerButton} />
       </View>
     </View>
   );

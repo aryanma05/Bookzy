@@ -18,6 +18,16 @@
     "public": "dist",
     "cleanUrls": true,
     "ignore": ["firebase.json", "**/.*"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Frame-Options", "value": "DENY" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        ]
+      }
+    ],
     "rewrites": [
       { "source": "/salon/**", "destination": "/salon/[id].html" },
       { "source": "/book/**", "destination": "/book/[salonId].html" },

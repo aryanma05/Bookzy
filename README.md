@@ -10,13 +10,14 @@ The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and th
 - Search with category filters and sorting by rating, price or distance
 - Salon pages with photo gallery, services grouped by category, reviews, opening hours, staff and cancellation policy
 - Booking flow: service → staff ("anyone" or a specific person) → date → time → confirmation
+- On the web, customers book without an account: name, mobile number and a code sent by SMS on the confirmation page. That's all someone who taps a booking link in an Instagram bio has to do
 - Real-time availability based on opening hours, service duration and existing bookings, with double-booking prevented on the server
 - Appointments: reschedule, cancel (within the salon's deadline), book again, directions and call the salon
 - Reviews that can only be written for completed appointments
 - Notifications sent from the server, so they also work on the web:
   - email confirmation when you book, move or cancel, and if the salon cancels
   - a reminder the day before (or two hours before for same-day bookings) – a push notification in the app, otherwise an email
-- Account: sign up, sign in, password reset, edit profile, delete account
+- Account: sign up, sign in, password reset, edit profile, delete account. On the web you can also sign in with your mobile number and an SMS code, which is how customers find their appointments again
 
 ### For businesses
 
@@ -44,9 +45,12 @@ Expo Go works for most things. Reminders and location are best tested in a devel
 
 ## Firebase setup (one time)
 
-1. **Enable email sign-in:** Firebase Console → Authentication → Sign-in method → enable *Email/Password*.
+1. **Enable sign-in:** Firebase Console → Authentication → Sign-in method → enable *Email/Password* and *Phone*.
+   - **Phone needs these too, or SMS will fail on the web:** under Authentication → Settings → *Authorized domains*, add `bookzy.no` (and `www.bookzy.no`). Under *SMS region policy*, choose *Allow* and select only Norway (and any other countries your customers have numbers from). This stops bots from sending SMS to expensive foreign numbers on your bill (SMS pumping).
+   - SMS costs money per message on the Blaze plan. Set a budget alert in Google Cloud Console → Billing → Budgets.
+   - Business accounts must use email, since that's where the salon is told about new bookings. In the apps (iOS/Android), customers still sign in with email: SMS sign-in there needs `@react-native-firebase/auth` and a development build.
 2. **Deploy security rules and indexes:** `npm run deploy:firestore` (requires `npm i -g firebase-tools` and `firebase login`). The reviews list and the business calendar need the composite indexes in `firestore.indexes.json`; they take a few minutes to build after deploying.
-3. **Add sample salons:** download a service account key (Project settings → Service accounts → Generate new private key), save it as `serviceAccountKey.json` in the project root (it is git-ignored) and run `npm run seed`. This replaces the sample salons; salons registered by businesses in the app are never touched.
+3. **Remove the sample salons before launch:** the database may still have the sample salons with fictional phone numbers from earlier testing. Download a service account key (Project settings → Service accounts → Generate new private key), save it as `serviceAccountKey.json` in the project root (it is git-ignored) and run `npm run seed:remove`. It deletes every salon without an owner, the sample reviews and any appointments at those salons. Salons registered by businesses in the app are never touched. Sample salons can only be added to the emulator (`npm run seed:emulator`).
 
 ## Booking link
 
@@ -93,7 +97,7 @@ npm run emulators        # Auth, Firestore and Functions (UI at http://127.0.0.1
 npm run seed:emulator    # sample salons, reviews and a test account with two appointments
 ```
 
-In the emulator, emails and push notifications are written to the Functions log instead of being sent, so test data never reaches real people. To keep the emulator from looking for the real secrets, create `functions/.secret.local` (git-ignored) with `RESEND_API_KEY=test` and `EXPO_ACCESS_TOKEN=test` on separate lines. Scheduled reminders don't run in the emulator.
+In the emulator, emails and push notifications are written to the Functions log instead of being sent, so test data never reaches real people. To keep the emulator from looking for the real secrets, create `functions/.secret.local` (git-ignored) with `RESEND_API_KEY=test` and `EXPO_ACCESS_TOKEN=test` on separate lines. Scheduled reminders don't run in the emulator. SMS codes aren't sent either; the Auth emulator prints them in its log and shows them in the Emulator UI.
 
 Then create `.env.local` with `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` and restart Expo. On a physical phone, also set `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST` to your computer's IP address (Android emulator: `10.0.2.2`). Delete `.env.local` to go back to the real database.
 
@@ -107,7 +111,9 @@ This creates two test accounts (email and password are in `scripts/seedSalons.js
 | `npm run lint` | Run ESLint |
 | `npm run test:rules` | Test `firestore.rules` against the emulator (requires Java) |
 | `npm run test:functions` | Test the notification texts and reminder times |
-| `npm run seed` / `seed:emulator` | Add sample salons |
+| `npm run test:app` | Test the phone number formatting |
+| `npm run seed:emulator` | Add sample salons, reviews and test accounts to the emulator |
+| `npm run seed:remove` | Remove the sample salons from the real database |
 | `npm run deploy:firestore` | Deploy rules and indexes |
 | `npm run deploy:functions` | Deploy the notification functions |
 | `npm run deploy:web` | Export the web version and deploy it to Firebase Hosting |
@@ -137,7 +143,7 @@ functions/             Cloud Functions: notifications and reminders
 ## Data model (Firestore)
 
 - `salons/{id}` — name, category, home salon or salon, address, photos, location, services, staff, opening hours, days off (`closedDates`: `2026-10-12` for the whole salon, `2026-10-12_staffId` for one person), cancellation deadline, `published` and rating totals. Anyone signed in can create a salon and becomes its `ownerId`. Only the owner can edit it, and never the rating totals, which are only updated together with a new review.
-- `bookings/{id}` — one appointment. The customer can read it and cancel before the salon's deadline. The salon owner can read all appointments at the salon, cancel at any time (`cancelledBy: 'salon'`) and mark `noShow` once the appointment has started. Bookings on days off are rejected by the rules. When the customer moves an appointment, the new booking has `replacesBookingId` and the old one is cancelled in the same transaction.
+- `bookings/{id}` — one appointment. The customer can read it and cancel before the salon's deadline. The salon owner can read all appointments at the salon, cancel at any time (`cancelledBy: 'salon'`) and mark `noShow` once the appointment has started. Bookings on days off are rejected by the rules. A customer who signed in with SMS can only book with the number they verified. When the customer moves an appointment, the new booking has `replacesBookingId` and the old one is cancelled in the same transaction.
 - `slots/{salonId_staffId_date_time}` — one 30-minute slot. Created in the same transaction as the booking and can never be overwritten, so two customers can't get the same time. Deleted when the customer or the salon cancels.
 - `reviews/{bookingId}` — public. One per completed booking, written by the person who had the appointment.
 - `users/{uid}` and `users/{uid}/favorites/{salonId}` — profile, notification settings (`reminders`, `salonEmails`) and favourites, private to the user.
