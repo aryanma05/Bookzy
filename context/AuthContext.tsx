@@ -39,7 +39,7 @@ type AuthContextType = {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   saveProfile: (profile: Profile) => Promise<void>;
-  /** Logger inn med koden fra SMS-en (se sendSmsCode i lib/auth). Et navn lagres på profilen. */
+  /** Logger inn med koden fra SMS-en, eller kobler nummeret til kontoen (se sendSmsCode i lib/auth). Et navn lagres på profilen. */
   confirmSmsCode: (confirmation: ConfirmationResult, code: string, name: string) => Promise<void>;
   savePreferences: (changes: Partial<Preferences>) => Promise<void>;
   sendVerificationEmail: () => Promise<void>;
@@ -231,6 +231,8 @@ export function authErrorMessage(error: unknown): string {
       return 'Vi fikk ikke bekreftet at du ikke er en robot. Last inn siden på nytt og prøv igjen.';
     case 'auth/network-request-failed':
       return 'Ingen nettverksforbindelse. Prøv igjen.';
+    case 'auth/credential-already-in-use':
+      return 'Nummeret hører allerede til en annen konto. Logg inn med nummeret og slett den kontoen først, eller bruk et annet nummer.';
     case 'auth/requires-recent-login':
       return 'Av sikkerhetshensyn må du logge inn på nytt før du gjør dette.';
     case 'auth/operation-not-allowed':

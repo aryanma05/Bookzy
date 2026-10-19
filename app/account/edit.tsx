@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import type { ConfirmationResult } from 'firebase/auth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -10,23 +11,60 @@ import { TextField } from '@/components/ui/text-field';
 import { colors } from '@/constants/theme';
 import { authErrorMessage, useAuth } from '@/context/AuthContext';
 import { showAlert } from '@/lib/alert';
+import { sendSmsCode, smsSignInSupported } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
-import { formatPhone } from '@/lib/phone';
+import { formatPhone, toE164 } from '@/lib/phone';
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, profile, displayName, saveProfile, resetPassword } = useAuth();
+  const { user, profile, displayName, saveProfile, resetPassword, confirmSmsCode } = useAuth();
 
   const [name, setName] = useState<string | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
+  const [code, setCode] = useState('');
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
 
   const nameValue = name ?? (profile?.name || displayName);
   // Logget inn med SMS: nummeret er bekreftet og følger innloggingen
   const verifiedPhone = user?.phoneNumber ?? null;
   const phoneValue = verifiedPhone ?? phone ?? profile?.phone ?? '';
+  // Ellers gir SMS-innlogging en ny, tom konto ved siden av e-postkontoen
+  const canLink = smsSignInSupported && !!user?.email && !verifiedPhone;
+
+  const linkPhone = async () => {
+    if (!user || linking) return;
+    const number = toE164(phoneValue);
+    if (!number) {
+      setSmsError('Skriv inn et gyldig mobilnummer.');
+      return;
+    }
+    if (confirmation && !/^\d{6}$/.test(code.trim())) {
+      setSmsError('Skriv inn den sekssifrede koden fra SMS-en.');
+      return;
+    }
+    setSmsError(null);
+    setLinking(true);
+    try {
+      if (!confirmation) {
+        setConfirmation(await sendSmsCode(number, user));
+        return;
+      }
+      await confirmSmsCode(confirmation, code, nameValue);
+      setConfirmation(null);
+      setCode('');
+      haptics.success();
+    } catch (linkError) {
+      haptics.warning();
+      setSmsError(authErrorMessage(linkError));
+    } finally {
+      setLinking(false);
+    }
+  };
 
   const save = async () => {
     if (!nameValue.trim()) {
@@ -67,12 +105,64 @@ export default function EditProfileScreen() {
             label="Telefonnummer"
             icon="call-outline"
             value={verifiedPhone ? formatPhone(verifiedPhone) : phoneValue}
-            onChangeText={setPhone}
-            editable={!verifiedPhone}
+            onChangeText={(value) => {
+              setPhone(value);
+              setSmsError(null);
+            }}
+            editable={!verifiedPhone && !confirmation}
             keyboardType="phone-pad"
             autoComplete="tel"
-            hint={verifiedPhone ? 'Bekreftet med SMS. Du logger inn med dette nummeret.' : 'Brukes av salongene hvis noe endrer seg med timen din.'}
+            error={confirmation ? undefined : smsError}
+            hint={
+              verifiedPhone
+                ? 'Bekreftet med SMS. Du kan logge inn med dette nummeret.'
+                : canLink
+                  ? 'Bekreft nummeret med SMS, så kan du også logge inn med det.'
+                  : 'Brukes av salongene hvis noe endrer seg med timen din.'
+            }
           />
+          {confirmation && (
+            <>
+              <TextField
+                label="Kode fra SMS"
+                icon="keypad-outline"
+                value={code}
+                onChangeText={(value) => {
+                  setCode(value);
+                  setSmsError(null);
+                }}
+                keyboardType="number-pad"
+                autoComplete="sms-otp"
+                textContentType="oneTimeCode"
+                placeholder="123456"
+                maxLength={6}
+                autoFocus
+                error={smsError}
+                onSubmitEditing={linkPhone}
+              />
+              <Pressable
+                onPress={() => {
+                  setConfirmation(null);
+                  setCode('');
+                  setSmsError(null);
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+              >
+                <Text variant="label" color={colors.primary}>Endre nummer eller send ny kode</Text>
+              </Pressable>
+            </>
+          )}
+          {canLink && (
+            <Button
+              title={confirmation ? 'Bekreft koden' : 'Bekreft med SMS'}
+              variant="outline"
+              size="md"
+              icon="chatbubble-outline"
+              loading={linking}
+              onPress={linkPhone}
+            />
+          )}
           {user?.email && (
             <>
               <TextField label="E-post" icon="mail-outline" value={user.email} editable={false} />

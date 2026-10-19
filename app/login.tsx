@@ -165,6 +165,11 @@ export default function LoginScreen() {
                 textContentType="telephoneNumber"
                 maxLength={20}
                 onSubmitEditing={handleSubmit}
+                hint={
+                  confirmation
+                    ? undefined
+                    : 'Har du konto med e-post? Logg inn med den og bekreft nummeret under «Personlige opplysninger» – ellers blir det en ny konto.'
+                }
               />
               {confirmation && (
                 <TextField

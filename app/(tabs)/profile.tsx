@@ -77,7 +77,7 @@ export default function ProfileScreen() {
           <View style={styles.profileText}>
             <Text variant="heading" numberOfLines={1}>{displayName}</Text>
             <Text variant="caption" numberOfLines={1}>{user.email ?? formatPhone(user.phoneNumber ?? '')}</Text>
-            {user.email && profile?.phone ? <Text variant="caption">{profile.phone}</Text> : null}
+            {user.email && profile?.phone ? <Text variant="caption">{formatPhone(profile.phone)}</Text> : null}
           </View>
           <Button title="Rediger" size="sm" variant="secondary" onPress={() => router.push('/account/edit')} />
         </View>
