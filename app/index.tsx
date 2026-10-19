@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -52,8 +52,8 @@ export default function IndexScreen() {
     return <Redirect href="/business" />;
   }
 
-  // Onboarding vises bare første gang appen åpnes
-  if (hasSeenOnboarding) {
+  // Onboarding vises bare første gang appen åpnes, og aldri på nettsiden – der er forsiden introen
+  if (hasSeenOnboarding || Platform.OS === 'web') {
     return <Redirect href="/explore" />;
   }
 

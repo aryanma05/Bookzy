@@ -29,8 +29,10 @@ export default function BookingSuccessScreen() {
   const now = useNow();
   const { bookingId, moved } = useLocalSearchParams<{ bookingId: string; moved?: string }>();
   const { user, preferences, emailVerified } = useAuth();
-  // På nettet kommer påminnelsen bare på e-post, og den har ikke de som booket med mobilnummer
-  const remindable = preferences.reminders && (emailVerified || Platform.OS !== 'web');
+  // Uten bekreftet e-post sendes bekreftelse og påminnelse på SMS til dem som logget inn med mobilnummer
+  const bySms = !emailVerified && !!user?.phoneNumber;
+  // På nettet er det ingen push, så der kommer påminnelsen bare på e-post eller SMS
+  const remindable = preferences.reminders && (emailVerified || bySms || Platform.OS !== 'web');
   const { bookings } = useBookings();
   const booking = bookings.find((item) => item.id === bookingId);
 
@@ -56,7 +58,7 @@ export default function BookingSuccessScreen() {
           <Text variant="display" align="center">{moved ? 'Timen er flyttet!' : 'Timen er booket!'}</Text>
           <Text variant="body" color={colors.textSecondary} align="center">
             Du finner den under Timer.
-            {emailVerified ? ' Bekreftelsen er sendt på e-post.' : ''}
+            {emailVerified ? ' Bekreftelsen er sendt på e-post.' : bySms ? ' Bekreftelsen er sendt på SMS.' : ''}
             {remindable ? reminderText(booking, now) : ''}
             {user && !user.email ? ' Logg inn med mobilnummeret ditt for å finne den igjen senere.' : ''}
           </Text>

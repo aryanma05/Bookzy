@@ -97,7 +97,7 @@ export default function ProfileScreen() {
           title="Konto"
           footer={
             !user.email
-              ? 'Du er logget inn med mobilnummeret ditt. Har du appen, kommer påminnelsen som varsel.'
+              ? 'Du er logget inn med mobilnummeret ditt. Bekreftelser og påminnelser sendes på SMS.'
               : verification.verified
                 ? 'Bekreftelser og påminnelser sendes på e-post. Har du appen, kommer påminnelsen som varsel.'
                 : 'Bekreft e-postadressen for å få bekreftelser og påminnelser på e-post.'

@@ -204,6 +204,36 @@ export function reminderEmail(booking: BookingInfo, now: Date, link: string | nu
   };
 }
 
+// ---- SMS til kunder som har booket med bare mobilnummer ----
+// Korte og uten tegn utenfor SMS-alfabetet (som tankestrek), så de helst får plass i én SMS på 160 tegn.
+
+function sms(...parts: (string | false | null)[]): string {
+  return parts.filter(Boolean).join(' ');
+}
+
+export function bookingSms(booking: BookingInfo, link: string | null, moved?: BookingInfo): string {
+  return sms(
+    `${moved ? 'Flyttet' : 'Bekreftet'}: ${booking.serviceName} hos ${booking.salonName} ${when(booking)}.`,
+    link && `Se timen: ${link}`
+  );
+}
+
+export function cancelledBySalonSms(booking: BookingInfo, link: string | null): string {
+  return sms(
+    `${booking.salonName} har avlyst ${booking.serviceName} ${when(booking)}.`,
+    booking.salonPhone && `Lurer du på noe, ring ${booking.salonPhone}.`,
+    link && `Book ny tid: ${link}`
+  );
+}
+
+export function reminderSms(booking: BookingInfo, now: Date, link: string | null): string {
+  return sms(
+    `Påminnelse: ${booking.serviceName} hos ${booking.salonName} ${relativeDate(booking.date, now)} kl ${booking.time}.`,
+    booking.salonPhone && `Kommer du ikke, ring ${booking.salonPhone}.`,
+    link && `Se timen: ${link}`
+  );
+}
+
 // ---- Til salongen ----
 
 export function newBookingPush(booking: BookingInfo, now: Date, moved?: BookingInfo): Push {
