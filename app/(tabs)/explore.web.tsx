@@ -58,6 +58,26 @@ export default function HomeScreen() {
 
   const search = (params: Record<string, string>) => router.navigate({ pathname: '/search', params });
 
+  // I starten finnes det ingen eller bare noen få salonger. Da heter de ikke «populære»,
+  // og uten salonger flyttes oppfordringen til bedrifter opp dit salongene ellers står.
+  const empty = !loading && !error && salons.length === 0;
+  const few = salons.length < 4;
+
+  const pitch = (
+    <View style={[styles.business, wide && styles.businessWide]}>
+      <View style={[styles.businessText, wide && styles.flex]}>
+        <Text variant="overline" color={colors.primary}>{empty ? 'Bookzy er nytt' : 'Bookzy for bedrifter'}</Text>
+        <Text variant="title">{empty ? 'Bli en av de første salongene' : 'Driver du salong?'}</Text>
+        <Text variant="body" color={colors.textSecondary}>
+          {empty
+            ? 'Vi har akkurat startet, og de første salongene er på vei. Få en egen bookingside med kalender og en lenke du kan legge i bioen. Det er gratis.'
+            : 'Få en egen bookingside med kalender og en lenke du kan legge i bioen. Jobber du hjemmefra eller alene, er du i gang på noen minutter.'}
+        </Text>
+      </View>
+      <Button title="Kom i gang" onPress={() => router.push('/business')} />
+    </View>
+  );
+
   return (
     <ScrollView style={styles.screen} showsVerticalScrollIndicator={false}>
       <View style={styles.hero}>
@@ -95,38 +115,42 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.page}>
-        <View style={styles.section}>
-          <SectionHeader
-            title={coords ? 'I nærheten' : 'Populære salonger'}
-            actionLabel="Se alle"
-            onAction={() => search(coords ? { sort: 'distance' } : { sort: 'rating' })}
-          />
-          {loading ? (
-            <View style={styles.grid}>
-              {Array.from({ length: columns }, (_, index) => (
-                <View key={index} style={{ width: cardWidth, gap: 10 }}>
-                  <Skeleton height={cardWidth * 0.62} borderRadius={radius.lg} />
-                  <Skeleton height={16} width="70%" />
-                  <Skeleton height={12} width="45%" />
-                </View>
-              ))}
-            </View>
-          ) : error && salons.length === 0 ? (
-            <EmptyState
-              icon="cloud-offline-outline"
-              title="Kunne ikke laste salonger"
-              message="Sjekk internettforbindelsen og prøv igjen."
-              actionLabel="Prøv igjen"
-              onAction={retry}
+        {empty ? (
+          pitch
+        ) : (
+          <View style={styles.section}>
+            <SectionHeader
+              title={coords ? 'I nærheten' : few ? 'Salonger på Bookzy' : 'Populære salonger'}
+              actionLabel="Se alle"
+              onAction={() => search(coords ? { sort: 'distance' } : { sort: 'rating' })}
             />
-          ) : (
-            <View style={styles.grid}>
-              {featured.map((salon) => (
-                <SalonCard key={salon.id} salon={salon} width={cardWidth} />
-              ))}
-            </View>
-          )}
-        </View>
+            {loading ? (
+              <View style={styles.grid}>
+                {Array.from({ length: columns }, (_, index) => (
+                  <View key={index} style={{ width: cardWidth, gap: 10 }}>
+                    <Skeleton height={cardWidth * 0.62} borderRadius={radius.lg} />
+                    <Skeleton height={16} width="70%" />
+                    <Skeleton height={12} width="45%" />
+                  </View>
+                ))}
+              </View>
+            ) : error && salons.length === 0 ? (
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Kunne ikke laste salonger"
+                message="Sjekk internettforbindelsen og prøv igjen."
+                actionLabel="Prøv igjen"
+                onAction={retry}
+              />
+            ) : (
+              <View style={styles.grid}>
+                {featured.map((salon) => (
+                  <SalonCard key={salon.id} salon={salon} width={cardWidth} />
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.section}>
           <SectionHeader title="Slik fungerer det" />
@@ -143,16 +167,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={[styles.business, wide && styles.businessWide]}>
-          <View style={[styles.businessText, wide && styles.flex]}>
-            <Text variant="overline" color={colors.primary}>Bookzy for bedrifter</Text>
-            <Text variant="title">Driver du salong?</Text>
-            <Text variant="body" color={colors.textSecondary}>
-              Få en egen bookingside med kalender og en lenke du kan legge i bioen. Jobber du hjemmefra eller alene, er du i gang på noen minutter.
-            </Text>
-          </View>
-          <Button title="Kom i gang" onPress={() => router.push('/business')} />
-        </View>
+        {!empty && pitch}
       </View>
 
       <View style={styles.footer}>
@@ -164,6 +179,7 @@ export default function HomeScreen() {
           <View style={styles.footerLinks}>
             <Link href="/help"><Text variant="caption">Hjelp</Text></Link>
             <Link href="/business"><Text variant="caption">For bedrifter</Text></Link>
+            <Link href="/privacy"><Text variant="caption">Personvern og vilkår</Text></Link>
           </View>
         </View>
       </View>

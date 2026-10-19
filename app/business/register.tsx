@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Redirect, useRouter } from 'expo-router';
 import { FormScreen } from '@/components/business/form-screen';
 import { CategoryPicker, FieldGroup, LocationTypePicker } from '@/components/business/salon-fields';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { haptics } from '@/lib/haptics';
 import type { LocationType } from '@/lib/salons';
 
 export default function RegisterBusinessScreen() {
+  const router = useRouter();
   const { profile, displayName } = useAuth();
   const { salon, createBusiness, setBusinessMode } = useBusiness();
 
@@ -136,6 +137,13 @@ export default function RegisterBusinessScreen() {
         onChangeText={setOwnerTitle}
         maxLength={40}
       />
+
+      <Pressable onPress={() => router.push('/privacy')} hitSlop={8} accessibilityRole="link">
+        <Text variant="caption">
+          Ved å opprette bedriften godtar du <Text variant="label" color={colors.primary}>vilkårene for bedrifter</Text>, som også er
+          databehandleravtalen for kundeopplysningene dine.
+        </Text>
+      </Pressable>
 
       {error && (
         <View style={styles.error}>

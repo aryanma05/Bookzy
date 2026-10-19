@@ -129,8 +129,9 @@ export default function ProfileScreen() {
       )}
 
       <Section title="Hjelp">
-        <ListRow icon="help-circle-outline" label="Vanlige spørsmål" onPress={() => router.push('/help')} last={!!salon} />
-        {!salon && <ListRow icon="storefront-outline" label="Bookzy for bedrifter" onPress={openBusiness} last />}
+        <ListRow icon="help-circle-outline" label="Vanlige spørsmål" onPress={() => router.push('/help')} />
+        {!salon && <ListRow icon="storefront-outline" label="Bookzy for bedrifter" onPress={openBusiness} />}
+        <ListRow icon="shield-checkmark-outline" label="Personvern og vilkår" onPress={() => router.push('/privacy')} last />
       </Section>
 
       {user && (

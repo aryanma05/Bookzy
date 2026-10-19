@@ -85,6 +85,8 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="business" options={{ animation: 'fade' }} />
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+        {/* Modal, så den også kan åpnes fra innloggingen (som selv er en modal) */}
+        <Stack.Screen name="privacy" options={{ presentation: 'modal' }} />
         <Stack.Screen name="review/[bookingId]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="book/success" options={{ animation: 'fade', gestureEnabled: false }} />
       </Stack>
@@ -93,7 +95,7 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
 }
 
 // Bestillingsflyten på nettsiden: toppmeny og en smal kolonne på PC i stedet for full bredde
-const WEB_COLUMN_ROUTES = new Set(['book/[salonId]', 'book/confirm', 'book/success', 'booking/[id]', 'login']);
+const WEB_COLUMN_ROUTES = new Set(['book/[salonId]', 'book/confirm', 'book/success', 'booking/[id]', 'login', 'help', 'privacy']);
 
 function webScreenLayout({ route, children }: { route: { name: string }; children: ReactElement }) {
   return WEB_COLUMN_ROUTES.has(route.name) ? <WebColumn>{children}</WebColumn> : children;

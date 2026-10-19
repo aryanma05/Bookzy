@@ -253,6 +253,14 @@ export default function LoginScreen() {
 
           <Button title={submitLabel} loading={submitting} onPress={handleSubmit} />
 
+          {(mode === 'signUp' || mode === 'phone') && (
+            <Pressable onPress={() => router.push('/privacy')} hitSlop={8} accessibilityRole="link">
+              <Text variant="caption" align="center">
+                Ved å fortsette godtar du <Text variant="label" color={colors.primary}>vilkårene og personvernerklæringen</Text>.
+              </Text>
+            </Pressable>
+          )}
+
           {smsSignInSupported && (mode === 'signIn' || mode === 'signUp') && (
             <Button title="Logg inn med mobilnummer" variant="outline" icon="call-outline" onPress={() => switchMode('phone')} />
           )}
