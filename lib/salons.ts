@@ -108,7 +108,8 @@ export function toSalon(id: string, data: DocumentData): Salon {
     area: data.area ?? '',
     description: data.description ?? '',
     phone: typeof data.phone === 'string' && data.phone ? data.phone : null,
-    imageUrl: data.imageUrl ?? photos[0] ?? null,
+    // Eksempelsalongene har også imageUrl, men forsidebildet eieren velger, er det første i photos
+    imageUrl: photos[0] ?? data.imageUrl ?? null,
     photos: photos.length > 0 ? photos : data.imageUrl ? [data.imageUrl] : [],
     location:
       typeof data.location?.lat === 'number' && typeof data.location?.lng === 'number'

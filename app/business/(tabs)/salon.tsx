@@ -176,6 +176,11 @@ export default function SalonSettingsScreen() {
               onPress={go(salon.services.length > 0 ? '/business/services' : '/business/service/new')}
             />
             <ChecklistItem done={openDays > 0} label="Sjekk åpningstidene" onPress={go('/business/hours')} />
+            <ChecklistItem
+              done={salon.photos.length > 0}
+              label="Legg inn bilder av arbeidet ditt"
+              onPress={go('/business/photos')}
+            />
           </View>
           <Button
             title="Publiser siden"
@@ -203,6 +208,12 @@ export default function SalonSettingsScreen() {
 
       <SettingsSection title="Oppsett">
         <ListRow icon="storefront-outline" label="Profil og kontaktinfo" onPress={go('/business/profile')} />
+        <ListRow
+          icon="images-outline"
+          label="Bilder"
+          value={salon.photos.length === 0 ? 'Ingen ennå' : String(salon.photos.length)}
+          onPress={go('/business/photos')}
+        />
         <ListRow
           icon="time-outline"
           label="Åpningstider"

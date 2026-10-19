@@ -36,6 +36,7 @@ export type SalonChanges = Partial<
     | 'closedDates'
     | 'cancellationHours'
     | 'published'
+    | 'photos'
   >
 >;
 
@@ -102,6 +103,7 @@ function editableData(salon: Salon, changes: SalonChanges) {
     closedDates: [...new Set(next.closedDates)].filter((key) => key.slice(0, 10) >= today).sort(),
     cancellationHours: next.cancellationHours,
     published: next.published,
+    photos: next.photos,
     updatedAt: serverTimestamp(),
   };
 }

@@ -47,6 +47,14 @@
           "locationWhenInUsePermission": "Bookzy bruker posisjonen din til å vise salonger i nærheten."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Bookzy bruker bildene du velger på salongsiden din.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       "expo-font",
       "expo-image",
       "expo-status-bar",

@@ -47,7 +47,8 @@ export default function DeleteAccountScreen() {
     setDeleting(true);
     try {
       if (usesPassword) await reauthenticate(password);
-      // Uten eier er det ingen som ser bookingene, så siden skjules
+      // Uten eier er det ingen som ser bookingene, så siden skjules.
+      // shortcut: bildene i Storage (salons/{id}/) blir liggende, rydd dem med en Cloud Function hvis det blir mange.
       if (salon?.published) await saveSalon({ published: false });
       for (const booking of bookings.filter((item) => canCancel(item, now))) {
         await cancelBooking(booking);

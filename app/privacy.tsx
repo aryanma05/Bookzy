@@ -24,7 +24,7 @@ const PRIVACY = [
       'Anmeldelser: stjerner, kommentar og fornavnet ditt med forbokstaven i etternavnet. Anmeldelser er offentlige.',
       'Varsler i appen: en kode for mobilen din, så vi kan sende varsler dit.',
       'Posisjon: brukes bare på mobilen eller i nettleseren din for å vise salonger i nærheten. Vi lagrer den ikke.',
-      'Bedrifter: navn, adresse eller område, telefon, tjenester, priser, ansatte og åpningstider. Dette vises på salongsiden. Eierens e-postadresse er ikke offentlig.',
+      'Bedrifter: navn, adresse eller område, telefon, bilder, tjenester, priser, ansatte og åpningstider. Dette vises på salongsiden. Eierens e-postadresse er ikke offentlig.',
     ],
   },
   {

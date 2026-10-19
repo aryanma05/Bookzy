@@ -35,8 +35,22 @@ service cloud.firestore {
     function editableSalonFields() {
       return [
         'name', 'category', 'description', 'address', 'area', 'phone', 'locationType',
-        'services', 'staff', 'openingHours', 'closedDates', 'cancellationHours', 'published', 'updatedAt'
+        'services', 'staff', 'openingHours', 'closedDates', 'cancellationHours', 'published', 'photos', 'updatedAt'
       ];
+    }
+
+    // Storage-emulatoren gir adresser som http://localhost:9199/..., ellers må bildene ligge på https.
+    function validPhoto(photos, i) {
+      return photos.size() <= i
+        || (photos[i] is string && photos[i].size() < 500
+          && photos[i].matches('(https://|http://(localhost|127[.]0[.]0[.]1|10[.]0[.]2[.]2):9199/).+'));
+    }
+
+    // Maks 8 bilder. Reglene har ingen løkker, så hvert bilde sjekkes for seg.
+    function validPhotos(photos) {
+      return photos is list && photos.size() <= 8
+        && validPhoto(photos, 0) && validPhoto(photos, 1) && validPhoto(photos, 2) && validPhoto(photos, 3)
+        && validPhoto(photos, 4) && validPhoto(photos, 5) && validPhoto(photos, 6) && validPhoto(photos, 7);
     }
 
     function validSalon(data) {
@@ -54,6 +68,7 @@ service cloud.firestore {
         && data.closedDates is list && data.closedDates.size() <= 400
         && data.cancellationHours is int && data.cancellationHours >= 0 && data.cancellationHours <= 168
         && data.published is bool
+        && validPhotos(data.get('photos', []))
         && data.updatedAt == request.time;
     }
 
