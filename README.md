@@ -30,6 +30,7 @@ Bookzy is built first and foremost for home-based salons, solo technicians and s
 - Appointment details with the customer's name, phone (call/SMS), note and history at the salon (number of visits and no-shows)
 - The salon can cancel an appointment at any time (the slot is freed and the customer sees that the salon cancelled), and mark "didn't show up" once it has started
 - Services (name, group, duration, price, description), staff, opening hours, days off and holidays for the whole salon or one person, cancellation deadline and profile
+- Up to 8 photos, picked from the phone or PC. They are shrunk before upload (max 1600 px, JPEG), and the owner chooses the cover, which is shown first on the salon page and in search. Without photos the salon shows its category icon
 - Push notification and email when someone books, moves or cancels. Email can be turned off under *Salongen → Varsler*
 
 ## Getting started
@@ -49,8 +50,9 @@ Expo Go works for most things. Reminders and location are best tested in a devel
    - **Phone needs these too, or SMS will fail on the web:** under Authentication → Settings → *Authorized domains*, add `bookzy.no` (and `www.bookzy.no`). Under *SMS region policy*, choose *Allow* and select only Norway (and any other countries your customers have numbers from). This stops bots from sending SMS to expensive foreign numbers on your bill (SMS pumping).
    - SMS costs money per message on the Blaze plan. Set a budget alert in Google Cloud Console → Billing → Budgets.
    - Business accounts must use email, since that's where the salon is told about new bookings. In the apps (iOS/Android), customers still sign in with email: SMS sign-in there needs `@react-native-firebase/auth` and a development build.
-2. **Deploy security rules and indexes:** `npm run deploy:firestore` (requires `npm i -g firebase-tools` and `firebase login`). The reviews list and the business calendar need the composite indexes in `firestore.indexes.json`; they take a few minutes to build after deploying.
-3. **Remove the sample salons before launch:** the database may still have the sample salons with fictional phone numbers from earlier testing. Download a service account key (Project settings → Service accounts → Generate new private key), save it as `serviceAccountKey.json` in the project root (it is git-ignored) and run `npm run seed:remove`. It deletes every salon without an owner, the sample reviews and any appointments at those salons. Salons registered by businesses in the app are never touched. Sample salons can only be added to the emulator (`npm run seed:emulator`).
+2. **Enable Storage** (for salon photos): Firebase Console → Storage → *Get started*, and pick a location in Europe. The bucket is `timeflyt.firebasestorage.app`, already set in `lib/firebase.ts`.
+3. **Deploy security rules and indexes:** `npm run deploy:firestore` and `npm run deploy:storage` (requires `npm i -g firebase-tools` and `firebase login`). The reviews list and the business calendar need the composite indexes in `firestore.indexes.json`; they take a few minutes to build after deploying. `storage.rules` reads the salon document to check who owns it, so the first Storage deploy asks to let Storage read Firestore. Answer yes, or uploads will be denied.
+4. **Remove the sample salons before launch:** the database may still have the sample salons with fictional phone numbers from earlier testing. Download a service account key (Project settings → Service accounts → Generate new private key), save it as `serviceAccountKey.json` in the project root (it is git-ignored) and run `npm run seed:remove`. It deletes every salon without an owner, the sample reviews and any appointments at those salons. Salons registered by businesses in the app are never touched. Sample salons can only be added to the emulator (`npm run seed:emulator`).
 
 ## Booking link
 
@@ -96,7 +98,7 @@ You can run everything against local emulators without touching the real databas
 
 ```bash
 npm --prefix functions install   # once
-npm run emulators        # Auth, Firestore and Functions (UI at http://127.0.0.1:4000)
+npm run emulators        # Auth, Firestore, Functions and Storage (UI at http://127.0.0.1:4000)
 npm run seed:emulator    # sample salons, reviews and a test account with two appointments
 ```
 
@@ -112,12 +114,13 @@ This creates two test accounts (email and password are in `scripts/seedSalons.js
 | --- | --- |
 | `npm start` | Start Expo |
 | `npm run lint` | Run ESLint |
-| `npm run test:rules` | Test `firestore.rules` against the emulator (requires Java) |
+| `npm run test:rules` | Test `firestore.rules` and `storage.rules` against the emulators (requires Java) |
 | `npm run test:functions` | Test the notification texts and reminder times |
 | `npm run test:app` | Test the phone number formatting |
 | `npm run seed:emulator` | Add sample salons, reviews and test accounts to the emulator |
 | `npm run seed:remove` | Remove the sample salons from the real database |
-| `npm run deploy:firestore` | Deploy rules and indexes |
+| `npm run deploy:firestore` | Deploy Firestore rules and indexes |
+| `npm run deploy:storage` | Deploy Storage rules |
 | `npm run deploy:functions` | Deploy the notification functions |
 | `npm run deploy:web` | Export the web version and deploy it to Firebase Hosting |
 
@@ -145,12 +148,14 @@ functions/             Cloud Functions: notifications and reminders
 
 ## Data model (Firestore)
 
-- `salons/{id}` — name, category, home salon or salon, address, photos, location, services, staff, opening hours, days off (`closedDates`: `2026-10-12` for the whole salon, `2026-10-12_staffId` for one person), cancellation deadline, `published` and rating totals. Anyone signed in can create a salon and becomes its `ownerId`. Only the owner can edit it, and never the rating totals, which are only updated together with a new review.
+- `salons/{id}` — name, category, home salon or salon, address, `photos` (up to 8 image URLs, the first is the cover), location, services, staff, opening hours, days off (`closedDates`: `2026-10-12` for the whole salon, `2026-10-12_staffId` for one person), cancellation deadline, `published` and rating totals. Anyone signed in can create a salon and becomes its `ownerId`. Only the owner can edit it, and never the rating totals, which are only updated together with a new review.
 - `bookings/{id}` — one appointment. The customer can read it and cancel before the salon's deadline. The salon owner can read all appointments at the salon, cancel at any time (`cancelledBy: 'salon'`) and mark `noShow` once the appointment has started. Bookings on days off are rejected by the rules. A customer who signed in with SMS can only book with the number they verified. When the customer moves an appointment, the new booking has `replacesBookingId` and the old one is cancelled in the same transaction.
 - `slots/{salonId_staffId_date_time}` — one 30-minute slot. Created in the same transaction as the booking and can never be overwritten, so two customers can't get the same time. Deleted when the customer or the salon cancels.
 - `reviews/{bookingId}` — public. One per completed booking, written by the person who had the appointment.
 - `users/{uid}` and `users/{uid}/favorites/{salonId}` — profile, notification settings (`reminders`, `salonEmails`) and favourites, private to the user.
 - `pushTokens/{token}` — which user a device belongs to. Written by the app, only read by the server.
 - `reminders/{bookingId}`, `sentNotifications/{key}` and `pushTickets/{id}` — used only by Cloud Functions. The app can't read or write them.
+
+Photos are stored in Firebase Storage at `salons/{salonId}/{random}.jpg`. Anyone can view them. Only the salon's owner can upload (images under 5 MB) and delete them (`storage.rules`). Files are not cleaned up when an owner deletes their account.
 
 Sample data uses photos from [Unsplash](https://unsplash.com) and fictional phone numbers.

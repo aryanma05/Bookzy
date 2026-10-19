@@ -1,8 +1,9 @@
-// Tester firestore.rules mot Firestore-emulatoren. Kjør med: npm run test:rules
+// Tester firestore.rules og storage.rules mot emulatorene. Kjør med: npm run test:rules
 const { spawnSync } = require('node:child_process');
 
 const result = spawnSync(
-  'firebase emulators:exec --only firestore --project demo-bookzy "node --test tests/*.test.mjs"',
+  // Én testfil om gangen, siden begge bruker samme Firestore-emulator
+  'firebase emulators:exec --only firestore,storage --project demo-bookzy "node --test --test-concurrency=1 tests/*.test.mjs"',
   { stdio: 'inherit', shell: true }
 );
 

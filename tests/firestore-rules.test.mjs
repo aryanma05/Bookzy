@@ -509,6 +509,53 @@ describe('redigere salongen', () => {
   });
 });
 
+describe('bilder av salongen', () => {
+  const photo = (name) => `https://firebasestorage.googleapis.com/v0/b/timeflyt/o/salons%2F${SALON_ID}%2F${name}.jpg`;
+  const savePhotos = (uid, photos) => updateDoc(doc(db(uid), 'salons', SALON_ID), salonData({ photos }));
+
+  test('eieren kan legge inn, bytte rekkefølge på og fjerne bilder', async () => {
+    await assertSucceeds(savePhotos(OWNER, [photo('a'), photo('b')]));
+    await assertSucceeds(savePhotos(OWNER, [photo('b'), photo('a')]));
+    await assertSucceeds(savePhotos(OWNER, []));
+  });
+
+  test('bilder fra Storage-emulatoren godtas', async () => {
+    await assertSucceeds(savePhotos(OWNER, ['http://localhost:9199/v0/b/timeflyt/o/salons%2Fa.jpg']));
+  });
+
+  test('andre kan ikke endre bildene', async () => {
+    await assertFails(savePhotos('alice', [photo('a')]));
+  });
+
+  test('maks 8 bilder', async () => {
+    const photos = Array.from({ length: 9 }, (_, i) => photo(i));
+    await assertSucceeds(savePhotos(OWNER, photos.slice(0, 8)));
+    await assertFails(savePhotos(OWNER, photos));
+  });
+
+  test('bare https-adresser som ikke er for lange', async () => {
+    await assertFails(savePhotos(OWNER, ['http://example.com/a.jpg']));
+    await assertFails(savePhotos(OWNER, ['javascript:alert(1)']));
+    await assertFails(savePhotos(OWNER, [photo('a'), `https://example.com/${'a'.repeat(500)}`]));
+    await assertFails(savePhotos(OWNER, [photo('a'), 42]));
+    await assertFails(savePhotos(OWNER, photo('a')));
+  });
+
+  test('ny bedrift kan registreres med og uten bilder', async () => {
+    const newSalon = (id, overrides) =>
+      setDoc(doc(db('lina'), 'salons', id), {
+        ...salonData(),
+        ownerId: 'lina',
+        ratingSum: 0,
+        reviewCount: 0,
+        createdAt: serverTimestamp(),
+        ...overrides,
+      });
+    await assertSucceeds(newSalon('uten-bilder', {}));
+    await assertSucceeds(newSalon('med-bilder', { photos: [photo('a')] }));
+  });
+});
+
 describe('fridager', () => {
   test('kan ikke booke når salongen har stengt', async () => {
     await asAdmin((firestore) => updateDoc(doc(firestore, 'salons', SALON_ID), { closedDates: [DATE] }));

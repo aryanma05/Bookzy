@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSalonOwner(salonId) {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/salons/$(salonId)).data.get('ownerId', null) == request.auth.uid;
+    }
+
+    // Bildene på salongsiden. Alle kan se dem, bare eieren kan legge til og fjerne.
+    match /salons/{salonId}/{fileName} {
+      allow read: if true;
+
+      allow create: if isSalonOwner(salonId)
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size < 5 * 1024 * 1024;
+
+      allow delete: if isSalonOwner(salonId);
+    }
+  }
+}

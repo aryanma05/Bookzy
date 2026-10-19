@@ -1,7 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 
-// Disse verdiene er ikke hemmelige – de ligger uansett i appen. Det er firestore.rules som styrer tilgangen.
+// Disse verdiene er ikke hemmelige – de ligger uansett i appen. Det er firestore.rules og storage.rules som styrer tilgangen.
 const firebaseConfig = {
   apiKey: "AIzaSyBJa7KjIzH9GK_nsF4xABLjVVBHVnr8qiI",
   authDomain: "timeflyt.firebaseapp.com",
@@ -16,6 +17,8 @@ export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfi
 
 export const db = getFirestore(app);
 
+export const storage = getStorage(app);
+
 // Med EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true i .env.local går appen mot lokale emulatorer
 // (npm run emulators) i stedet for den ekte databasen.
 export const emulatorHost =
@@ -25,4 +28,5 @@ export const emulatorHost =
 
 if (emulatorHost) {
   connectFirestoreEmulator(db, emulatorHost, 8080);
+  connectStorageEmulator(storage, emulatorHost, 9199);
 }
