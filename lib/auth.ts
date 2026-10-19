@@ -1,4 +1,4 @@
-import { connectAuthEmulator, getAuth, signInWithPhoneNumber, type ApplicationVerifier } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, linkWithPhoneNumber, signInWithPhoneNumber, type ApplicationVerifier, type User } from 'firebase/auth';
 // @ts-expect-error Finnes bare i nettlesertypene, og tsconfig peker på React Native-typene (se paths der)
 import { RecaptchaVerifier } from 'firebase/auth';
 import { app, emulatorHost } from './firebase';
@@ -15,9 +15,12 @@ export const smsSignInSupported = true;
 
 let recaptcha: ApplicationVerifier | undefined;
 
-/** Sender en engangskode til nummeret (+47…). Usynlig reCAPTCHA hindrer roboter i å sende SMS-er på vår regning. */
-export function sendSmsCode(phoneNumber: string) {
+/**
+ * Sender en engangskode til nummeret (+47…). Usynlig reCAPTCHA hindrer roboter i å sende SMS-er på vår regning.
+ * Med `linkTo` kobles nummeret til den kontoen, så SMS-innlogging gir samme konto som e-post.
+ */
+export function sendSmsCode(phoneNumber: string, linkTo?: User) {
   // Firebase nullstiller den etter hvert forsøk, så samme kan brukes for «send ny kode»
   recaptcha ??= new RecaptchaVerifier(auth, document.body.appendChild(document.createElement('div')), { size: 'invisible' });
-  return signInWithPhoneNumber(auth, phoneNumber, recaptcha);
+  return linkTo ? linkWithPhoneNumber(linkTo, phoneNumber, recaptcha) : signInWithPhoneNumber(auth, phoneNumber, recaptcha);
 }
