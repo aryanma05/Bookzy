@@ -137,11 +137,19 @@ export default function SearchScreen() {
             </Animated.View>
           )}
           ListEmptyComponent={
-            <EmptyState
-              icon="search-outline"
-              title="Ingen treff"
-              message={search ? `Vi fant ingen salonger for «${query.trim()}». Prøv et annet ord eller fjern filteret.` : 'Prøv en annen kategori.'}
-            />
+            salons.length === 0 ? (
+              <EmptyState
+                icon="storefront-outline"
+                title="Ingen salonger ennå"
+                message="Bookzy er helt nytt, og de første salongene er på vei. Har du fått en lenke fra salongen din, kan du booke rett der."
+              />
+            ) : (
+              <EmptyState
+                icon="search-outline"
+                title="Ingen treff"
+                message={search ? `Vi fant ingen salonger for «${query.trim()}». Prøv et annet ord eller fjern filteret.` : 'Prøv en annen kategori.'}
+              />
+            )
           }
         />
       )}

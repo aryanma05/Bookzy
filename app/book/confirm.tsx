@@ -266,6 +266,12 @@ export default function ConfirmBookingScreen() {
             </View>
           )}
 
+          <Pressable onPress={() => router.push('/privacy')} hitSlop={8} accessibilityRole="link">
+            <Text variant="caption" align="center">
+              Ved å booke godtar du <Text variant="label" color={colors.primary}>vilkårene og personvernerklæringen</Text>.
+            </Text>
+          </Pressable>
+
           {!user && (
             <Pressable onPress={() => router.push('/login')} hitSlop={8} accessibilityRole="button" style={styles.login}>
               <Text variant="caption" align="center">
