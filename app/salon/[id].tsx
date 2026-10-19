@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -27,6 +27,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stars } from '@/components/ui/stars';
 import { Text } from '@/components/ui/text';
+import { WebHeader } from '@/components/web-header';
 import { colors, fonts, radius } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useLocation } from '@/context/LocationContext';
@@ -35,6 +36,7 @@ import { useNow } from '@/hooks/use-now';
 import { useSalonReviews } from '@/hooks/use-salon-reviews';
 import { distanceKm, formatDistance } from '@/lib/geo';
 import { callSalon, openDirections, shareSalon } from '@/lib/links';
+import type { Review } from '@/lib/reviews';
 import {
   formatCancellationPolicy,
   formatDuration,
@@ -53,6 +55,7 @@ type Tab = 'services' | 'reviews' | 'about';
 export default function SalonScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { width } = useWindowDimensions();
   const { user } = useAuth();
   const { getSalon, loading } = useSalons();
   const salon = id ? getSalon(id) : undefined;
@@ -86,15 +89,22 @@ export default function SalonScreen() {
     );
   }
 
+  // På PC viser nettsiden alt på én bred side i stedet for faner
+  if (Platform.OS === 'web' && width >= 900) {
+    return <SalonPage salon={salon} />;
+  }
+
   return <SalonDetails salon={salon} />;
+}
+
+function salonPhotos(salon: Salon) {
+  return salon.photos.length > 0 ? salon.photos : salon.imageUrl ? [salon.imageUrl] : [];
 }
 
 function SalonDetails({ salon }: { salon: Salon }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const now = useNow();
-  const { coords } = useLocation();
   const { reviews, loading: reviewsLoading } = useSalonReviews(salon.id, salon.reviewCount);
 
   const [tab, setTab] = useState<Tab>('services');
@@ -134,12 +144,7 @@ function SalonDetails({ salon }: { salon: Salon }) {
     ],
   }));
 
-  const status = openStatus(salon.openingHours, now, salon.closedDates);
-  const distance = coords && salon.location ? formatDistance(distanceKm(coords, salon.location)) : null;
-  const photos = salon.photos.length > 0 ? salon.photos : salon.imageUrl ? [salon.imageUrl] : [];
-  const today = weekdayKey(now);
-
-  const book = (serviceId: string) => router.push({ pathname: '/book/[salonId]', params: { salonId: salon.id, serviceId } });
+  const photos = salonPhotos(salon);
 
   return (
     <View style={styles.screen}>
@@ -167,41 +172,7 @@ function SalonDetails({ salon }: { salon: Salon }) {
         </Animated.View>
 
         <View style={styles.body}>
-          <Text variant="overline" color={colors.primary}>
-            {salon.locationType === 'home' ? `${salon.category} · Hjemmesalong` : salon.category}
-          </Text>
-          <Text variant="title" style={styles.name}>{salon.name}</Text>
-
-          <PressableScale scaleTo={0.98} style={styles.metaRow} onPress={() => setTab('reviews')}>
-            {salon.rating !== null ? (
-              <>
-                <Stars rating={salon.rating} size={15} />
-                <Text variant="label">{formatRating(salon.rating)}</Text>
-                <Text variant="caption" color={colors.textMuted}>({salon.reviewCount} anmeldelser)</Text>
-              </>
-            ) : (
-              <Text variant="label" color={colors.primary}>Ny på Bookzy</Text>
-            )}
-          </PressableScale>
-
-          <View style={styles.metaRow}>
-            <Ionicons name="location-outline" size={16} color={colors.textMuted} />
-            <Text variant="caption" style={styles.metaText}>
-              {displayAddress(salon)}{distance ? ` · ${distance}` : ''}
-            </Text>
-          </View>
-          <View style={styles.metaRow}>
-            <View style={[styles.statusDot, { backgroundColor: status.isOpen ? colors.success : colors.textMuted }]} />
-            <Text variant="caption" color={status.isOpen ? colors.success : colors.textSecondary}>{status.text}</Text>
-          </View>
-
-          <View style={styles.actions}>
-            {salon.phone && <QuickAction icon="call-outline" label="Ring" onPress={() => callSalon(salon)} />}
-            {salon.address ? (
-              <QuickAction icon="navigate-outline" label="Veibeskrivelse" onPress={() => openDirections(salon)} />
-            ) : null}
-            <QuickAction icon="share-outline" label="Del" onPress={() => shareSalon(salon)} />
-          </View>
+          <SalonIntro salon={salon} onRatingPress={() => setTab('reviews')} />
 
           <SegmentedControl
             options={[
@@ -213,106 +184,11 @@ function SalonDetails({ salon }: { salon: Salon }) {
             onChange={setTab}
           />
 
-          {tab === 'services' && (
-            <View style={styles.tabContent}>
-              {salon.services.length === 0 && (
-                <EmptyState icon="list-outline" title="Ingen tjenester ennå" message="Salongen har ikke lagt inn tjenester." />
-              )}
-              {groupServices(salon.services).map((group) => (
-                <View key={group.category} style={styles.serviceGroup}>
-                  <Text variant="overline">{group.category}</Text>
-                  {group.services.map((service, index) => (
-                    <View key={service.id} style={[styles.service, index < group.services.length - 1 && styles.serviceDivider]}>
-                      <View style={styles.serviceText}>
-                        <Text variant="bodyStrong">{service.name}</Text>
-                        {service.description ? <Text variant="caption">{service.description}</Text> : null}
-                        <Text variant="caption" color={colors.textMuted}>
-                          {formatDuration(service.durationMin)} · {formatPrice(service.priceNok)}
-                        </Text>
-                      </View>
-                      <Button title="Book" size="sm" onPress={() => book(service.id)} />
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {tab === 'reviews' && (
-            <View style={styles.tabContent}>
-              {salon.rating !== null && (
-                <RatingSummary rating={salon.rating} count={salon.reviewCount} reviews={reviews} />
-              )}
-              {reviewsLoading ? (
-                <View style={styles.reviewSkeletons}>
-                  <Skeleton height={70} />
-                  <Skeleton height={70} />
-                </View>
-              ) : reviews.length === 0 ? (
-                <EmptyState icon="chatbubble-ellipses-outline" title="Ingen anmeldelser ennå" message="Bli den første som anmelder etter timen din." />
-              ) : (
-                reviews.map((review, index) => (
-                  <ReviewItem key={review.id} review={review} last={index === reviews.length - 1} />
-                ))
-              )}
-            </View>
-          )}
-
-          {tab === 'about' && (
-            <View style={[styles.tabContent, styles.about]}>
-              {salon.description ? <Text variant="body">{salon.description}</Text> : null}
-
-              <View style={styles.aboutBlock}>
-                <Text variant="subheading">Åpningstider</Text>
-                {WEEK.map(({ key, label }) => {
-                  const hours = salon.openingHours[key];
-                  const isToday = key === today;
-                  return (
-                    <View key={key} style={styles.hoursRow}>
-                      <Text variant={isToday ? 'bodyStrong' : 'body'}>{label}</Text>
-                      <Text variant={isToday ? 'bodyStrong' : 'body'} color={hours ? undefined : colors.textMuted}>
-                        {hours ? `${hours.open}–${hours.close}` : 'Stengt'}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-
-              {salon.staff.length > 0 && (
-                <View style={styles.aboutBlock}>
-                  <Text variant="subheading">Ansatte</Text>
-                  {salon.staff.map((member) => (
-                    <View key={member.id} style={styles.staffRow}>
-                      <Avatar name={member.name} size={40} />
-                      <View>
-                        <Text variant="bodyStrong">{member.name}</Text>
-                        {member.title ? <Text variant="caption">{member.title}</Text> : null}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              <View style={styles.aboutBlock}>
-                <Text variant="subheading">Avbestilling</Text>
-                <Text variant="body" color={colors.textSecondary}>{formatCancellationPolicy(salon.cancellationHours)}</Text>
-              </View>
-
-              <View style={styles.aboutBlock}>
-                <Text variant="subheading">Adresse</Text>
-                {salon.address ? (
-                  <>
-                    <Text variant="body" color={colors.textSecondary}>{salon.address}</Text>
-                    <Button title="Vis i kart" variant="outline" size="md" icon="map-outline" onPress={() => openDirections(salon)} />
-                  </>
-                ) : (
-                  <Text variant="body" color={colors.textSecondary}>
-                    {salon.area}. Dette er en hjemmesalong – du får nøyaktig adresse av {salon.name}.
-                  </Text>
-                )}
-              </View>
-            </View>
-          )}
+          <View style={styles.tabContent}>
+            {tab === 'services' && <ServiceList salon={salon} />}
+            {tab === 'reviews' && <ReviewList salon={salon} reviews={reviews} loading={reviewsLoading} />}
+            {tab === 'about' && <AboutSalon salon={salon} />}
+          </View>
         </View>
       </Animated.ScrollView>
 
@@ -326,6 +202,214 @@ function SalonDetails({ salon }: { salon: Salon }) {
           <FavoriteButton salonId={salon.id} size={40} />
         </View>
       </Animated.View>
+    </View>
+  );
+}
+
+/** Salongsiden på PC: bilder øverst, tjenester og anmeldelser til venstre, info til høyre. */
+function SalonPage({ salon }: { salon: Salon }) {
+  const { reviews, loading: reviewsLoading } = useSalonReviews(salon.id, salon.reviewCount);
+  const photos = salonPhotos(salon);
+
+  return (
+    <View style={styles.page}>
+      <WebHeader />
+      <ScrollView>
+        <View style={styles.pageInner}>
+          <View style={styles.photoGrid}>
+            {photos.length === 0 ? (
+              <SalonPhoto salon={salon} style={styles.photoMain} iconSize={64} />
+            ) : (
+              <>
+                <Image source={{ uri: photos[0] }} style={styles.photoMain} contentFit="cover" transition={250} />
+                {photos.length > 1 && (
+                  <View style={styles.photoSide}>
+                    {photos.slice(1, 3).map((uri) => (
+                      <Image key={uri} source={{ uri }} style={styles.photoSmall} contentFit="cover" transition={250} />
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+            <View style={styles.photoFavorite}>
+              <FavoriteButton salonId={salon.id} size={40} />
+            </View>
+          </View>
+
+          <View style={styles.columns}>
+            <View style={styles.mainColumn}>
+              <SalonIntro salon={salon} />
+              <Text variant="heading" style={styles.pageHeading}>Tjenester</Text>
+              <ServiceList salon={salon} />
+              <Text variant="heading" style={styles.pageHeading}>Anmeldelser</Text>
+              <ReviewList salon={salon} reviews={reviews} loading={reviewsLoading} />
+            </View>
+            <View style={styles.aside}>
+              <AboutSalon salon={salon} />
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function SalonIntro({ salon, onRatingPress }: { salon: Salon; onRatingPress?: () => void }) {
+  const now = useNow();
+  const { coords } = useLocation();
+  const status = openStatus(salon.openingHours, now, salon.closedDates);
+  const distance = coords && salon.location ? formatDistance(distanceKm(coords, salon.location)) : null;
+
+  return (
+    <>
+      <Text variant="overline" color={colors.primary}>
+        {salon.locationType === 'home' ? `${salon.category} · Hjemmesalong` : salon.category}
+      </Text>
+      <Text variant="title" style={styles.name}>{salon.name}</Text>
+
+      <PressableScale scaleTo={0.98} style={styles.metaRow} onPress={onRatingPress} disabled={!onRatingPress}>
+        {salon.rating !== null ? (
+          <>
+            <Stars rating={salon.rating} size={15} />
+            <Text variant="label">{formatRating(salon.rating)}</Text>
+            <Text variant="caption" color={colors.textMuted}>({salon.reviewCount} anmeldelser)</Text>
+          </>
+        ) : (
+          <Text variant="label" color={colors.primary}>Ny på Bookzy</Text>
+        )}
+      </PressableScale>
+
+      <View style={styles.metaRow}>
+        <Ionicons name="location-outline" size={16} color={colors.textMuted} />
+        <Text variant="caption" style={styles.metaText}>
+          {displayAddress(salon)}{distance ? ` · ${distance}` : ''}
+        </Text>
+      </View>
+      <View style={styles.metaRow}>
+        <View style={[styles.statusDot, { backgroundColor: status.isOpen ? colors.success : colors.textMuted }]} />
+        <Text variant="caption" color={status.isOpen ? colors.success : colors.textSecondary}>{status.text}</Text>
+      </View>
+
+      <View style={styles.actions}>
+        {salon.phone && <QuickAction icon="call-outline" label="Ring" onPress={() => callSalon(salon)} />}
+        {salon.address ? (
+          <QuickAction icon="navigate-outline" label="Veibeskrivelse" onPress={() => openDirections(salon)} />
+        ) : null}
+        <QuickAction icon="share-outline" label="Del" onPress={() => shareSalon(salon)} />
+      </View>
+    </>
+  );
+}
+
+function ServiceList({ salon }: { salon: Salon }) {
+  const router = useRouter();
+  const book = (serviceId: string) => router.push({ pathname: '/book/[salonId]', params: { salonId: salon.id, serviceId } });
+
+  if (salon.services.length === 0) {
+    return <EmptyState icon="list-outline" title="Ingen tjenester ennå" message="Salongen har ikke lagt inn tjenester." />;
+  }
+
+  return (
+    <>
+      {groupServices(salon.services).map((group) => (
+        <View key={group.category} style={styles.serviceGroup}>
+          <Text variant="overline">{group.category}</Text>
+          {group.services.map((service, index) => (
+            <View key={service.id} style={[styles.service, index < group.services.length - 1 && styles.serviceDivider]}>
+              <View style={styles.serviceText}>
+                <Text variant="bodyStrong">{service.name}</Text>
+                {service.description ? <Text variant="caption">{service.description}</Text> : null}
+                <Text variant="caption" color={colors.textMuted}>
+                  {formatDuration(service.durationMin)} · {formatPrice(service.priceNok)}
+                </Text>
+              </View>
+              <Button title="Book" size="sm" onPress={() => book(service.id)} />
+            </View>
+          ))}
+        </View>
+      ))}
+    </>
+  );
+}
+
+function ReviewList({ salon, reviews, loading }: { salon: Salon; reviews: Review[]; loading: boolean }) {
+  return (
+    <>
+      {salon.rating !== null && (
+        <RatingSummary rating={salon.rating} count={salon.reviewCount} reviews={reviews} />
+      )}
+      {loading ? (
+        <View style={styles.reviewSkeletons}>
+          <Skeleton height={70} />
+          <Skeleton height={70} />
+        </View>
+      ) : reviews.length === 0 ? (
+        <EmptyState icon="chatbubble-ellipses-outline" title="Ingen anmeldelser ennå" message="Bli den første som anmelder etter timen din." />
+      ) : (
+        reviews.map((review, index) => (
+          <ReviewItem key={review.id} review={review} last={index === reviews.length - 1} />
+        ))
+      )}
+    </>
+  );
+}
+
+function AboutSalon({ salon }: { salon: Salon }) {
+  const today = weekdayKey(useNow());
+
+  return (
+    <View style={styles.about}>
+      {salon.description ? <Text variant="body">{salon.description}</Text> : null}
+
+      <View style={styles.aboutBlock}>
+        <Text variant="subheading">Åpningstider</Text>
+        {WEEK.map(({ key, label }) => {
+          const hours = salon.openingHours[key];
+          const isToday = key === today;
+          return (
+            <View key={key} style={styles.hoursRow}>
+              <Text variant={isToday ? 'bodyStrong' : 'body'}>{label}</Text>
+              <Text variant={isToday ? 'bodyStrong' : 'body'} color={hours ? undefined : colors.textMuted}>
+                {hours ? `${hours.open}–${hours.close}` : 'Stengt'}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {salon.staff.length > 0 && (
+        <View style={styles.aboutBlock}>
+          <Text variant="subheading">Ansatte</Text>
+          {salon.staff.map((member) => (
+            <View key={member.id} style={styles.staffRow}>
+              <Avatar name={member.name} size={40} />
+              <View>
+                <Text variant="bodyStrong">{member.name}</Text>
+                {member.title ? <Text variant="caption">{member.title}</Text> : null}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.aboutBlock}>
+        <Text variant="subheading">Avbestilling</Text>
+        <Text variant="body" color={colors.textSecondary}>{formatCancellationPolicy(salon.cancellationHours)}</Text>
+      </View>
+
+      <View style={styles.aboutBlock}>
+        <Text variant="subheading">Adresse</Text>
+        {salon.address ? (
+          <>
+            <Text variant="body" color={colors.textSecondary}>{salon.address}</Text>
+            <Button title="Vis i kart" variant="outline" size="md" icon="map-outline" onPress={() => openDirections(salon)} />
+          </>
+        ) : (
+          <Text variant="body" color={colors.textSecondary}>
+            {salon.area}. Dette er en hjemmesalong – du får nøyaktig adresse av {salon.name}.
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -411,4 +495,21 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, paddingHorizontal: 10 },
   headerTitleText: { color: colors.ink },
   headerActions: { flexDirection: 'row', gap: 10 },
+  page: { flex: 1, backgroundColor: colors.surface },
+  pageInner: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 64 },
+  photoGrid: { flexDirection: 'row', gap: 8, height: 400, borderRadius: radius.xl, overflow: 'hidden' },
+  photoMain: { flex: 2, height: '100%', backgroundColor: colors.divider },
+  photoSide: { flex: 1, gap: 8 },
+  photoSmall: { flex: 1, backgroundColor: colors.divider },
+  photoFavorite: { position: 'absolute', top: 16, right: 16 },
+  columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 48, marginTop: 32 },
+  mainColumn: { flex: 1, gap: 6 },
+  pageHeading: { marginTop: 12, marginBottom: 4 },
+  aside: {
+    width: 360,
+    padding: 24,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
 });

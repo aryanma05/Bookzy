@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { useEffect, type ReactElement, type ReactNode } from 'react';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,6 +12,7 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
+import { WebHeader } from '@/components/web-header';
 import { colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { BookingProvider } from '@/context/BookingContext';
@@ -76,7 +77,10 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
   return (
     <>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+      <Stack
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
+        screenLayout={Platform.OS === 'web' ? webScreenLayout : undefined}
+      >
         <Stack.Screen name="index" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="business" options={{ animation: 'fade' }} />
@@ -87,6 +91,32 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
     </>
   );
 }
+
+// Bestillingsflyten på nettsiden: toppmeny og en smal kolonne på PC i stedet for full bredde
+const WEB_COLUMN_ROUTES = new Set(['book/[salonId]', 'book/confirm', 'book/success', 'booking/[id]', 'login']);
+
+function webScreenLayout({ route, children }: { route: { name: string }; children: ReactElement }) {
+  return WEB_COLUMN_ROUTES.has(route.name) ? <WebColumn>{children}</WebColumn> : children;
+}
+
+function WebColumn({ children }: { children: ReactNode }) {
+  const { width } = useWindowDimensions();
+  const wide = width >= 900;
+
+  // Samme oppbygning på alle bredder, så skjermen ikke starter på nytt når vinduet endrer størrelse
+  return (
+    <View style={styles.webScreen}>
+      {wide && <WebHeader />}
+      <View style={[styles.webContent, wide && styles.webColumn]}>{children}</View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  webScreen: { flex: 1, backgroundColor: colors.background },
+  webContent: { flex: 1, width: '100%' },
+  webColumn: { maxWidth: 640, alignSelf: 'center' },
+});
 
 const BOOKING_ID = /^[A-Za-z0-9_-]{1,100}$/;
 
