@@ -10,12 +10,15 @@ export const MAX_PHOTOS = 8;
 // Lengste side. Store nok for salongsiden på PC, og bare et par hundre kB hver.
 const MAX_SIDE = 1600;
 
+/** Småbildene av tjenestene vises bare noen få cm store. */
+export const THUMBNAIL_SIDE = 400;
+
 /** Gjør bildet mindre, laster det opp og gir adressen det vises fra. */
-export async function uploadSalonPhoto(salonId: string, asset: ImagePickerAsset) {
+export async function uploadSalonPhoto(salonId: string, asset: ImagePickerAsset, maxSide = MAX_SIDE) {
   const context = ImageManipulator.manipulate(asset.uri);
   // Bredde og høyde kan være 0 hvis systemet ikke vet dem. Da lagres bildet bare som JPEG.
-  if (Math.max(asset.width, asset.height) > MAX_SIDE) {
-    context.resize(asset.width >= asset.height ? { width: MAX_SIDE } : { height: MAX_SIDE });
+  if (Math.max(asset.width, asset.height) > maxSide) {
+    context.resize(asset.width >= asset.height ? { width: maxSide } : { height: maxSide });
   }
   const image = await (await context.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
   const blob = await (await fetch(image.uri)).blob();

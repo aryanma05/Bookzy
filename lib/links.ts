@@ -1,9 +1,11 @@
 import { Linking, Platform, Share } from 'react-native';
 import type { Salon } from './salons';
 import { showAlert } from './alert';
+import { toE164 } from './phone';
 
+// Bare adressen: med navnet foran viser kartet navnet på hjemmesalongen, eller finner et annet sted med samme navn
 export function openDirections(salon: Salon) {
-  const query = encodeURIComponent(`${salon.name}, ${salon.address}`);
+  const query = encodeURIComponent(salon.address);
   const url =
     Platform.OS === 'ios'
       ? `https://maps.apple.com/?q=${query}`
@@ -11,19 +13,33 @@ export function openDirections(salon: Salon) {
   Linking.openURL(url).catch(() => showAlert('Kunne ikke åpne kart'));
 }
 
+/**
+ * Åpner en tel:- eller sms:-lenke. react-native-web åpner lenker i en ny fane,
+ * og det stopper mobilnettlesere og Instagram-nettleseren, så på nettet byttes adressen i samme fane.
+ */
+export async function openPhoneLink(url: string) {
+  if (Platform.OS === 'web') {
+    window.location.href = url;
+    return;
+  }
+  await Linking.openURL(url);
+}
+
 export function callSalon(salon: Salon) {
   if (!salon.phone) return;
-  Linking.openURL(`tel:${salon.phone.replace(/\s+/g, '')}`).catch(() =>
-    showAlert('Kunne ikke ringe', `Telefonnummeret er ${salon.phone}.`)
-  );
+  const number = toE164(salon.phone) ?? salon.phone.replace(/[^\d+]/g, '');
+  openPhoneLink(`tel:${number}`).catch(() => showAlert('Kunne ikke ringe', `Telefonnummeret er ${salon.phone}.`));
 }
 
 // Adressen til nettversjonen, samme verdi som APP_URL i functions. Uten den deles salongen uten lenke.
 const appUrl = (process.env.EXPO_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '');
 
-/** Lenke til salongsiden som kunder kan åpne i nettleseren, eller null hvis EXPO_PUBLIC_APP_URL ikke er satt. */
+/**
+ * Den korte lenken til salongen (bookzy.no/negler-hos-lina), eller null hvis EXPO_PUBLIC_APP_URL ikke er satt.
+ * Den viser navnet og forsidebildet når den deles, og sender kunden videre til salongsiden (salonLinkPage i functions).
+ */
 export function salonLink(salonId: string): string | null {
-  return appUrl ? `${appUrl}/salon/${encodeURIComponent(salonId)}` : null;
+  return appUrl ? `${appUrl}/${encodeURIComponent(salonId)}` : null;
 }
 
 /** For salongen selv: bare lenken, så den kan limes rett inn i Instagram-bio eller en SMS. */

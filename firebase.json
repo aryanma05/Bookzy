@@ -38,7 +38,8 @@
       { "source": "/review/**", "destination": "/review/[bookingId].html" },
       { "source": "/business/booking/**", "destination": "/business/booking/[id].html" },
       { "source": "/business/service/**", "destination": "/business/service/[id].html" },
-      { "source": "/business/staff/**", "destination": "/business/staff/[id].html" }
+      { "source": "/business/staff/**", "destination": "/business/staff/[id].html" },
+      { "source": "**", "function": { "functionId": "salonLinkPage", "region": "europe-west1" } }
     ]
   },
   "emulators": {

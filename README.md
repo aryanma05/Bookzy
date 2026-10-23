@@ -29,8 +29,10 @@ Bookzy is built first and foremost for home-based salons, solo technicians and s
 - Calendar with day and week views. On a phone the week is a list per day; on a wide screen it's a seven-day grid and the menu moves to a sidebar. With several staff members, the day view has one column per person and can be filtered
 - Appointment details with the customer's name, phone (call/SMS), note and history at the salon (number of visits and no-shows)
 - The salon can cancel an appointment at any time (the slot is freed and the customer sees that the salon cancelled), and mark "didn't show up" once it has started
-- Services (name, group, duration, price, description), staff, opening hours, days off and holidays for the whole salon or one person, cancellation deadline and profile
-- Up to 8 photos, picked from the phone or PC. They are shrunk before upload (max 1600 px, JPEG), and the owner chooses the cover, which is shown first on the salon page and in search. Without photos the salon shows its category icon
+- Services (name, group, duration, price, description and an optional thumbnail), staff, opening hours, days off and holidays for the whole salon or one person, cancellation deadline and profile. The duration is set in quarters with + and –, or typed in minutes. Bookings still start every half hour and take whole half hours in the calendar, so a 50-minute service holds an hour; the form says so
+- Breaks: each open day can have one or more breaks (lunch, picking up the kids). Customers can't book a time that runs into a break, the salon page lists them under the opening hours, and the calendar shows them in grey
+- *Fleksibel salong*: a home salon can hide its opening hours. Customers then only see free times. The weekly hours still decide when they can book, so nobody books in the middle of the night
+- Up to 8 cover photos (*Forsidebilder*), picked from the phone or PC. They are shrunk before upload (max 1600 px, JPEG), and the owner chooses the cover, which is shown first on the salon page and in search. Without photos the salon shows its category icon
 - Push notification and email when someone books, moves or cancels. Email can be turned off under *Salongen → Varsler*
 
 ## Getting started
@@ -56,11 +58,13 @@ Expo Go works for most things. Reminders and location are best tested in a devel
 
 ## Booking link
 
-Each salon gets a link to its page, `<web address>/salon/<id>`, to put in the Instagram bio or send by SMS. The link is shown under *Bookinglenke* in business mode and is also included when customers share a salon.
+Each salon gets a short link, `<web address>/<id>` (for example `bookzy.no/negler-hos-lina`), to put in the Instagram bio or send by SMS. The id is the salon's name, with four extra characters only if the name is taken or is the name of a page in the app. The link is shown under *Bookinglenke* in business mode and is also included when customers share a salon.
+
+Link previews (Instagram, Messenger, iMessage, SMS) don't run JavaScript, so the static pages would show the same title and logo for every salon. The short link is therefore served by the `salonLinkPage` function: it returns the salon's name, description and first cover photo as Open Graph tags and sends the browser on to `/salon/<id>`. Hosting caches the answer for an hour, and clears it on every deploy. Old links to `/salon/<id>` still work, but show the general preview.
 
 The web version is hosted on Firebase Hosting at `https://bookzy.no`. The address is set in two places: `EXPO_PUBLIC_APP_URL` in `.env` for the app, and `APP_URL` in `functions/.env.timeflyt` for links in emails. It is built into the app when it is exported, so if the domain ever changes, update both and deploy the web version, the functions and the apps again.
 
-1. Run `npm run deploy:web`. It exports the web version to `dist/` and deploys it. If the deploy says the site doesn't exist, open Hosting in Firebase Console and click *Get started* once.
+1. Run `npm run deploy:web`. It exports the web version to `dist/` and deploys it together with `salonLinkPage`, since Hosting sends every address that isn't a page to that function. The functions must be set up first (see Notifications). If the deploy says the site doesn't exist, open Hosting in Firebase Console and click *Get started* once.
 2. Connect the domain (one time): Firebase Console → Hosting → *Add custom domain* → `bookzy.no`, and add the DNS records it shows at your domain registrar. Add `www.bookzy.no` too and let it redirect to `bookzy.no`. The certificate can take a few hours; until then the site is only at `https://timeflyt.web.app`.
 
 Without `EXPO_PUBLIC_APP_URL`, salons are shared without a link and the button in business mode is hidden.
@@ -122,7 +126,7 @@ This creates two test accounts (email and password are in `scripts/seedSalons.js
 | `npm run deploy:firestore` | Deploy Firestore rules and indexes |
 | `npm run deploy:storage` | Deploy Storage rules |
 | `npm run deploy:functions` | Deploy the notification functions |
-| `npm run deploy:web` | Export the web version and deploy it to Firebase Hosting |
+| `npm run deploy:web` | Export the web version and deploy it to Firebase Hosting, together with the short-link function |
 
 ## Project structure
 
@@ -148,7 +152,7 @@ functions/             Cloud Functions: notifications and reminders
 
 ## Data model (Firestore)
 
-- `salons/{id}` — name, category, home salon or salon, address, `photos` (up to 8 image URLs, the first is the cover), location, services, staff, opening hours, days off (`closedDates`: `2026-10-12` for the whole salon, `2026-10-12_staffId` for one person), cancellation deadline, `published` and rating totals. Anyone signed in can create a salon and becomes its `ownerId`. Only the owner can edit it, and never the rating totals, which are only updated together with a new review.
+- `salons/{id}` — name, category, home salon or salon, address, `photos` (up to 8 image URLs, the first is the cover), location, services, staff, opening hours, days off (`closedDates`: `2026-10-12` for the whole salon, `2026-10-12_staffId` for one person), cancellation deadline, `flexibleHours` (hide the opening hours), `published` and rating totals. Anyone signed in can create a salon and becomes its `ownerId`. Only the owner can edit it, and never the rating totals, which are only updated together with a new review.
 - `bookings/{id}` — one appointment. The customer can read it and cancel before the salon's deadline. The salon owner can read all appointments at the salon, cancel at any time (`cancelledBy: 'salon'`) and mark `noShow` once the appointment has started. Bookings on days off are rejected by the rules. A customer who signed in with SMS can only book with the number they verified. When the customer moves an appointment, the new booking has `replacesBookingId` and the old one is cancelled in the same transaction.
 - `slots/{salonId_staffId_date_time}` — one 30-minute slot. Created in the same transaction as the booking and can never be overwritten, so two customers can't get the same time. Deleted when the customer or the salon cancels.
 - `reviews/{bookingId}` — public. One per completed booking, written by the person who had the appointment.

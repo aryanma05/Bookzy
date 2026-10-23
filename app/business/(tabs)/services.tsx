@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,9 @@ export default function ServicesScreen() {
                     style={({ pressed }) => [styles.row, index > 0 && styles.divider, pressed && styles.pressed]}
                     accessibilityRole="button"
                   >
+                    {service.imageUrl ? (
+                      <Image source={{ uri: service.imageUrl }} style={styles.image} contentFit="cover" transition={200} />
+                    ) : null}
                     <View style={styles.flex}>
                       <Text variant="bodyStrong">{service.name}</Text>
                       {service.description ? (
@@ -92,4 +96,5 @@ const styles = StyleSheet.create({
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   pressed: { backgroundColor: colors.background },
   meta: { alignItems: 'flex-end' },
+  image: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.divider },
 });

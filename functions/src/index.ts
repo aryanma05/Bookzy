@@ -4,12 +4,14 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { logger, setGlobalOptions } from 'firebase-functions';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/firestore';
+import { onRequest } from 'firebase-functions/https';
 import { onSchedule } from 'firebase-functions/scheduler';
 import { region } from 'firebase-functions/v1';
 import { claim, isDocId, loadBooking, movedFrom, preferences, wasMoved, type LoadedBooking } from './booking';
 import { appLink, expoAccessToken, resendApiKey, sveveApiKey } from './config';
 import { sendEmail, verifiedEmail } from './email';
 import { reminderTime } from './format';
+import { previewHtml, toPreview } from './link';
 import * as messages from './messages';
 import { checkPushReceipts, sendPush } from './push';
 import { sendSms, verifiedPhone } from './sms';
@@ -198,6 +200,28 @@ export const sendReminders = onSchedule(
     await checkPushReceipts().catch((error) => logger.warn('Kunne ikke sjekke push-kvitteringer', { error: String(error) }));
   }
 );
+
+/**
+ * Den korte bookinglenken, bookzy.no/{salongId}. Hosting sender hit alle adresser som ikke er en fil i nettversjonen
+ * (se rewrites i firebase.json), så appens egne sider går aldri via funksjonen.
+ */
+export const salonLinkPage = onRequest(async (request, response) => {
+  const id = request.path.replace(/^\/+|\/+$/g, '');
+  const link = appLink(`/${id}`);
+  const salon = isDocId(id) && link ? (await getFirestore().collection('salons').doc(id).get()).data() : undefined;
+  if (!salon || !link) {
+    // Feil eller gammel lenke: forsiden i stedet for en tom side. Kort cache, i tilfelle salongen lages straks etter.
+    response.set('Cache-Control', 'public, max-age=60, s-maxage=300').redirect(302, '/');
+    return;
+  }
+  // Skjulte salonger får ingen forhåndsvisning, men lenken virker for eieren som vil se siden sin
+  const preview = toPreview(id, salon) ?? { id, name: 'Bookzy', text: 'Book time hos salonger nær deg.', image: null };
+  // Hosting cacher svaret, så de fleste kundene slipper å vente på funksjonen. Tømmes ved hver deploy av nettversjonen.
+  response
+    .set('Cache-Control', 'public, max-age=300, s-maxage=3600')
+    .type('html')
+    .send(previewHtml(preview, link, appLink('') ?? ''));
+});
 
 /** Rydder bort enheter og påminnelser når en konto slettes. */
 export const onUserDeleted = region(REGION)

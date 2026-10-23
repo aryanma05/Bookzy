@@ -195,7 +195,7 @@ export default function SalonSettingsScreen() {
       {salon.published && link && (
         <SettingsSection
           title="Bookinglenke"
-          footer={`Legg lenken i Instagram-bio eller send den på SMS, så booker kundene rett hos deg.\n${link}`}
+          footer={`Legg lenken i Instagram-bio eller send den på SMS, så booker kundene rett hos deg.\n${link.replace(/^https:\/\//, '')}`}
         >
           <ListRow
             icon={Platform.OS === 'web' ? 'copy-outline' : 'share-outline'}
@@ -210,14 +210,20 @@ export default function SalonSettingsScreen() {
         <ListRow icon="storefront-outline" label="Profil og kontaktinfo" onPress={go('/business/profile')} />
         <ListRow
           icon="images-outline"
-          label="Bilder"
+          label="Forsidebilder"
           value={salon.photos.length === 0 ? 'Ingen ennå' : String(salon.photos.length)}
           onPress={go('/business/photos')}
         />
         <ListRow
           icon="time-outline"
           label="Åpningstider"
-          value={openDays === 0 ? 'Stengt' : `${openDays} ${openDays === 1 ? 'dag' : 'dager'} i uka`}
+          value={
+            salon.flexibleHours
+              ? 'Fleksibel'
+              : openDays === 0
+                ? 'Stengt'
+                : `${openDays} ${openDays === 1 ? 'dag' : 'dager'} i uka`
+          }
           onPress={go('/business/hours')}
         />
         <ListRow
@@ -228,7 +234,7 @@ export default function SalonSettingsScreen() {
         />
         <ListRow
           icon="people-outline"
-          label="Hvem tar imot kunder"
+          label="Ansatte"
           value={salon.staff.length === 1 ? 'Bare deg' : `${salon.staff.length} personer`}
           onPress={go('/business/staff')}
           last

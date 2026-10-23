@@ -1,4 +1,4 @@
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
@@ -8,6 +8,7 @@ import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useBookings, type Booking } from '@/context/BookingContext';
+import { useEmailVerification } from '@/hooks/use-email-verification';
 import { useNow } from '@/hooks/use-now';
 import { formatPrice } from '@/lib/salons';
 import { formatDay, toMinutes, toTime } from '@/lib/schedule';
@@ -35,6 +36,9 @@ export default function BookingSuccessScreen() {
   const remindable = preferences.reminders && (emailVerified || bySms || Platform.OS !== 'web');
   const { bookings } = useBookings();
   const booking = bookings.find((item) => item.id === bookingId);
+  const verification = useEmailVerification();
+  // Uten bekreftet e-post og uten SMS-innlogging får kunden verken bekreftelse eller påminnelse
+  const unconfirmed = !!user?.email && !emailVerified && !bySms;
 
   const goHome = () => {
     router.dismissAll();
@@ -64,33 +68,40 @@ export default function BookingSuccessScreen() {
           </Text>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(320).duration(400)} style={styles.card}>
-          {booking ? (
-            <>
-              <Text variant="heading">{booking.salonName}</Text>
-              <View style={styles.row}>
-                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                <Text variant="bodyStrong">
-                  {formatDay(booking.startAt, now)}, {booking.time}–{toTime(toMinutes(booking.time) + booking.durationMin)}
-                </Text>
-              </View>
-              <View style={styles.row}>
-                <Ionicons name="cut-outline" size={18} color={colors.primary} />
-                <Text variant="body">{booking.serviceName}</Text>
-              </View>
-              <View style={styles.row}>
-                <Ionicons name="person-outline" size={18} color={colors.primary} />
-                <Text variant="body">{booking.staffName}</Text>
-              </View>
-              <View style={styles.row}>
-                <Ionicons name="card-outline" size={18} color={colors.primary} />
-                <Text variant="body">{formatPrice(booking.priceNok)} · betales i salongen</Text>
-              </View>
-            </>
-          ) : (
-            <ActivityIndicator color={colors.primary} />
-          )}
-        </Animated.View>
+        {/* Vises når timen er hentet. Feiler det, står fortsatt «Timen er booket» og knappene, ikke et hjul som aldri stopper. */}
+        {booking && (
+          <Animated.View entering={FadeInDown.delay(320).duration(400)} style={styles.card}>
+            <Text variant="heading">{booking.salonName}</Text>
+            <View style={styles.row}>
+              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+              <Text variant="bodyStrong">
+                {formatDay(booking.startAt, now)}, {booking.time}–{toTime(toMinutes(booking.time) + booking.durationMin)}
+              </Text>
+            </View>
+            <View style={styles.row}>
+              <Ionicons name="cut-outline" size={18} color={colors.primary} />
+              <Text variant="body">{booking.serviceName}</Text>
+            </View>
+            <View style={styles.row}>
+              <Ionicons name="person-outline" size={18} color={colors.primary} />
+              <Text variant="body">{booking.staffName}</Text>
+            </View>
+            <View style={styles.row}>
+              <Ionicons name="card-outline" size={18} color={colors.primary} />
+              <Text variant="body">{formatPrice(booking.priceNok)} · betales i salongen</Text>
+            </View>
+          </Animated.View>
+        )}
+
+        {unconfirmed && (
+          <Animated.View entering={FadeInDown.delay(380).duration(400)} style={styles.notice}>
+            <Ionicons name="mail-unread-outline" size={20} color={colors.primaryDark} />
+            <Text variant="caption" color={colors.primaryDark} style={styles.noticeText}>
+              Bekreft e-postadressen din, så får du bekreftelse og påminnelse på e-post neste gang.
+            </Text>
+            <Button title="Send lenke" size="sm" variant="secondary" onPress={verification.send} />
+          </Animated.View>
+        )}
       </View>
 
       <Animated.View entering={FadeInDown.delay(450).duration(400)} style={styles.actions}>
@@ -123,5 +134,15 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  notice: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+  },
+  noticeText: { flex: 1 },
   actions: { gap: 8 },
 });

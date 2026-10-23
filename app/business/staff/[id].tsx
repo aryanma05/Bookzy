@@ -31,7 +31,7 @@ export default function EditStaffScreen() {
 
   if (!isNew && !existing) {
     return (
-      <FormScreen title="Person" backTo="/business/staff">
+      <FormScreen title="Ansatt" backTo="/business/staff">
         <EmptyState icon="person-outline" title="Fant ikke personen" />
       </FormScreen>
     );
@@ -110,7 +110,7 @@ export default function EditStaffScreen() {
 
   return (
     <FormScreen
-      title={isNew ? 'Ny person' : 'Endre'}
+      title={isNew ? 'Ny ansatt' : 'Endre ansatt'}
       backTo="/business/staff"
       footer={
         <>

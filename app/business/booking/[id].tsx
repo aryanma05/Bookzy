@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/ui/avatar';
@@ -15,6 +15,7 @@ import { useNow } from '@/hooks/use-now';
 import { useCustomerHistory, useSalonBooking } from '@/hooks/use-salon-bookings';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
+import { openPhoneLink } from '@/lib/links';
 import { formatDuration, formatPrice } from '@/lib/salons';
 import { formatDay, formatFullDate, formatTimeRange } from '@/lib/schedule';
 
@@ -115,8 +116,8 @@ export default function SalonBookingScreen() {
       ]
     );
 
-  const call = () => Linking.openURL(`tel:${phone}`).catch(() => showAlert('Kunne ikke ringe', `Nummeret er ${booking.customerPhone}.`));
-  const message = () => Linking.openURL(`sms:${phone}`).catch(() => showAlert('Kunne ikke åpne meldinger', `Nummeret er ${booking.customerPhone}.`));
+  const call = () => openPhoneLink(`tel:${phone}`).catch(() => showAlert('Kunne ikke ringe', `Nummeret er ${booking.customerPhone}.`));
+  const message = () => openPhoneLink(`sms:${phone}`).catch(() => showAlert('Kunne ikke åpne meldinger', `Nummeret er ${booking.customerPhone}.`));
 
   return (
     <View style={styles.screen}>

@@ -9,6 +9,8 @@ export type Service = {
   durationMin: number;
   priceNok: number;
   description?: string;
+  /** Småbilde av tjenesten, lastet opp av eieren. */
+  imageUrl?: string;
 };
 
 export type StaffMember = {
@@ -41,6 +43,8 @@ export type Salon = {
   services: Service[];
   staff: StaffMember[];
   openingHours: OpeningHours;
+  /** Fleksibel salong: kundene ser ingen åpningstider, bare ledige timer. Ukeplanen styrer fortsatt når de kan booke. */
+  flexibleHours: boolean;
   /** «2026-10-12» = hele salongen er stengt, «2026-10-12_maria» = bare Maria har fri. */
   closedDates: string[];
   cancellationHours: number;
@@ -119,10 +123,15 @@ export function toSalon(id: string, data: DocumentData): Salon {
     ratingSum,
     reviewCount,
     services: Array.isArray(data.services)
-      ? data.services.filter(isService).map((service: Service) => ({ ...service, category: service.category ?? 'Behandlinger' }))
+      ? data.services.filter(isService).map((service: Service) => ({
+          ...service,
+          category: service.category ?? 'Behandlinger',
+          imageUrl: typeof service.imageUrl === 'string' ? service.imageUrl : undefined,
+        }))
       : [],
     staff: staff.map((member) => ({ ...member, title: member.title ?? '' })),
     openingHours: data.openingHours ?? {},
+    flexibleHours: data.flexibleHours === true,
     closedDates: Array.isArray(data.closedDates) ? data.closedDates.filter((key: unknown) => typeof key === 'string') : [],
     cancellationHours: typeof data.cancellationHours === 'number' ? data.cancellationHours : 24,
     // Salongene fra før feltet fantes, er synlige

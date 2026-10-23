@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { launchImageLibraryAsync } from 'expo-image-picker';
 import { FormScreen } from '@/components/business/form-screen';
@@ -16,6 +17,7 @@ import { deleteSalonPhoto, MAX_PHOTOS, uploadSalonPhoto } from '@/lib/photos';
 type Upload = { done: number; total: number };
 
 export default function PhotosScreen() {
+  const router = useRouter();
   const { salon, saveSalon } = useBusiness();
   const [upload, setUpload] = useState<Upload | null>(null);
   const [saving, setSaving] = useState(false);
@@ -92,18 +94,30 @@ export default function PhotosScreen() {
       },
     ]);
 
+  // Hver endring lagres med en gang. Knappen bekrefter det og går tilbake til menyen.
+  const done = () =>
+    showAlert(
+      'Forsidebildene er lagret',
+      salon.published ? 'Kundene ser dem på siden din nå.' : 'Kundene ser dem når du har publisert siden.',
+      [{ text: 'OK', onPress: () => (router.canGoBack() ? router.back() : router.replace('/business/salon')) }]
+    );
+
   const footer = (
-    <Button
-      title={upload ? `Laster opp ${upload.done + 1} av ${upload.total} …` : 'Legg til bilder'}
-      icon={upload ? undefined : 'add'}
-      disabled={busy || room <= 0}
-      onPress={addPhotos}
-      style={styles.flex}
-    />
+    <>
+      <Button
+        title={upload ? `Laster opp ${upload.done + 1} av ${upload.total} …` : 'Legg til bilder'}
+        icon={upload ? undefined : 'add'}
+        variant="secondary"
+        disabled={busy || room <= 0}
+        onPress={addPhotos}
+        style={styles.flex}
+      />
+      <Button title="Lagre" disabled={busy} onPress={done} style={styles.flex} />
+    </>
   );
 
   return (
-    <FormScreen title="Bilder" subtitle={`${photos.length} av ${MAX_PHOTOS}`} footer={footer}>
+    <FormScreen title="Forsidebilder" subtitle={`${photos.length} av ${MAX_PHOTOS}`} footer={footer}>
       {photos.length === 0 && !upload ? (
         <EmptyState
           icon="images-outline"
@@ -113,7 +127,7 @@ export default function PhotosScreen() {
       ) : (
         <>
           <Text variant="caption">
-            Det første bildet er forsidebildet. Det vises øverst på siden din og når kundene søker.
+            Bildene vises øverst på siden din. Det første ser kundene også når de søker, så velg det beste med stjernen.
             {room <= 0 ? ` Du kan ha opptil ${MAX_PHOTOS} bilder, så fjern ett for å legge inn et nytt.` : ''}
           </Text>
           <View style={styles.grid}>
@@ -122,7 +136,7 @@ export default function PhotosScreen() {
                 <Image source={{ uri: url }} style={styles.image} contentFit="cover" transition={200} />
                 {index === 0 && (
                   <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Forsidebilde</Text>
+                    <Text style={styles.badgeText}>Vises først</Text>
                   </View>
                 )}
                 <View style={styles.actions}>
@@ -130,7 +144,7 @@ export default function PhotosScreen() {
                     <IconButton
                       icon="star-outline"
                       size={36}
-                      accessibilityLabel="Bruk som forsidebilde"
+                      accessibilityLabel="Vis dette bildet først"
                       onPress={busy ? undefined : () => makeCover(url)}
                     />
                   )}

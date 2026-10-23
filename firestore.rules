@@ -35,7 +35,8 @@ service cloud.firestore {
     function editableSalonFields() {
       return [
         'name', 'category', 'description', 'address', 'area', 'phone', 'locationType',
-        'services', 'staff', 'openingHours', 'closedDates', 'cancellationHours', 'published', 'photos', 'updatedAt'
+        'services', 'staff', 'openingHours', 'flexibleHours', 'closedDates', 'cancellationHours', 'published', 'photos',
+        'updatedAt'
       ];
     }
 
@@ -65,6 +66,7 @@ service cloud.firestore {
         && data.staff is list && data.staff.size() >= 1 && data.staff.size() <= 30
         && data.openingHours is map
         && data.openingHours.keys().hasOnly(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+        && data.get('flexibleHours', false) is bool
         && data.closedDates is list && data.closedDates.size() <= 400
         && data.cancellationHours is int && data.cancellationHours >= 0 && data.cancellationHours <= 168
         && data.published is bool
