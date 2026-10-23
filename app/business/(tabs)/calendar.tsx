@@ -147,6 +147,13 @@ export default function CalendarScreen() {
             <Text variant="caption" numberOfLines={1}>{salon.name}</Text>
             <Text variant="title">Kalender</Text>
           </View>
+          <IconButton
+            icon="share-social-outline"
+            variant="soft"
+            size={36}
+            onPress={() => router.push('/business/availability')}
+            accessibilityLabel="Del ledige timer"
+          />
           <View style={styles.modeSwitch}>
             <SegmentedControl
               options={[

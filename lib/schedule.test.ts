@@ -1,7 +1,7 @@
 // Kjør med: npm run test:app
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getAvailableTimes, openStatus, type OpeningHours } from './schedule.ts';
+import { dayOverview, getAvailableTimes, openStatus, type OpeningHours } from './schedule.ts';
 
 // Mandag 26. oktober 2026, og «nå» er dagen før
 const MONDAY = new Date(2026, 9, 26);
@@ -24,4 +24,30 @@ test('en behandling kan slutte når pausen starter, men ikke gå inn i den', () 
 test('i pausen står det når salongen åpner igjen', () => {
   assert.deepEqual(openStatus(HOURS, new Date(2026, 9, 26, 10, 15)), { isOpen: false, text: 'Pause · åpner igjen 10:30' });
   assert.equal(openStatus(HOURS, new Date(2026, 9, 26, 10, 45)).isOpen, true);
+});
+
+test('oversikten viser ledige tider etter hverandre og bookede timer', () => {
+  const overview = (bookings: { time: string; durationMin: number; staffId: string }[], now = SUNDAY) =>
+    dayOverview({
+      openingHours: { mon: { open: '13:00', close: '19:00' } },
+      closedDates: [],
+      date: MONDAY,
+      durationMin: 180,
+      staffIds: ['lina'],
+      bookings,
+      now,
+    });
+
+  assert.deepEqual(overview([]), [
+    { time: '13:00', booked: false },
+    { time: '16:00', booked: false },
+  ]);
+  assert.deepEqual(overview([{ time: '16:00', durationMin: 180, staffId: 'lina' }]), [
+    { time: '13:00', booked: false },
+    { time: '16:00', booked: true },
+  ]);
+  // Dager som har vært, viser bare det som ble booket
+  assert.deepEqual(overview([{ time: '16:00', durationMin: 180, staffId: 'lina' }], new Date(2026, 9, 27)), [
+    { time: '16:00', booked: true },
+  ]);
 });
