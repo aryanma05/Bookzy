@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -19,6 +20,12 @@ import { useAuth } from './AuthContext';
 
 const MODE_KEY = 'timeflyt:businessMode';
 
+// Salongens ID er også lenken (bookzy.no/{id}), så den kan ikke hete det samme som en side i appen
+const RESERVED_IDS = new Set([
+  'account', 'assets', 'book', 'booking', 'bookings', 'business', 'explore', 'favicon', 'favorites',
+  'help', 'icon', 'index', 'login', 'privacy', 'profile', 'review', 'salon', 'search',
+]);
+
 /** Feltene eieren kan endre. Må stemme med editableSalonFields() i firestore.rules. */
 export type SalonChanges = Partial<
   Pick<
@@ -33,6 +40,7 @@ export type SalonChanges = Partial<
     | 'services'
     | 'staff'
     | 'openingHours'
+    | 'flexibleHours'
     | 'closedDates'
     | 'cancellationHours'
     | 'published'
@@ -89,16 +97,19 @@ function editableData(salon: Salon, changes: SalonChanges) {
     area: next.area.trim(),
     phone: (next.phone ?? '').trim(),
     locationType: next.locationType,
-    services: next.services.map(({ id, name, category, durationMin, priceNok, description }) => ({
+    services: next.services.map(({ id, name, category, durationMin, priceNok, description, imageUrl }) => ({
       id,
       name,
       category,
       durationMin,
       priceNok,
       ...(description ? { description } : {}),
+      ...(imageUrl ? { imageUrl } : {}),
     })),
     staff: next.staff.map(({ id, name, title }) => ({ id, name, title })),
     openingHours: next.openingHours,
+    // Bare når den er i bruk, så lagring virker også hvis appen er ute før de nye reglene er deployet
+    ...('flexibleHours' in changes || salon.flexibleHours ? { flexibleHours: next.flexibleHours } : {}),
     // Fridager som har vært, trengs ikke lenger
     closedDates: [...new Set(next.closedDates)].filter((key) => key.slice(0, 10) >= today).sort(),
     cancellationHours: next.cancellationHours,
@@ -154,7 +165,10 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
 
   const createBusiness = async (input: NewBusiness) => {
     if (!user) throw new Error('Du må være logget inn.');
-    const id = `${slugify(input.name) || 'salong'}-${shortId().slice(0, 4)}`;
+    // Bare navnet når det er ledig, ellers fire tegn bak. Tar noen andre det samtidig, avviser reglene den siste.
+    const slug = slugify(input.name) || 'salong';
+    const free = !RESERVED_IDS.has(slug) && !(await getDoc(doc(db, 'salons', slug))).exists();
+    const id = free ? slug : `${slug}-${shortId().slice(0, 4)}`;
     await setDoc(doc(db, 'salons', id), {
       ownerId: user.uid,
       name: input.name.trim(),

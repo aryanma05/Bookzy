@@ -3,7 +3,9 @@
 export const SLOT_INTERVAL_MIN = 30;
 
 export type WeekdayKey = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
-export type DayHours = { open: string; close: string };
+export type TimeRange = { start: string; end: string };
+/** `breaks` er pauser der kundene ikke kan booke, f.eks. lunsj. */
+export type DayHours = { open: string; close: string; breaks?: TimeRange[] };
 export type OpeningHours = Partial<Record<WeekdayKey, DayHours | null>>;
 
 /** staffId → tider (HH:mm) som allerede er booket */
@@ -123,6 +125,7 @@ export function getAvailableTimes({
   if (!hours || staffIds.length === 0) return [];
 
   const close = toMinutes(hours.close);
+  const breaks = (hours.breaks ?? []).map((pause) => [toMinutes(pause.start), toMinutes(pause.end)]);
   const isToday = toDateKey(date) === toDateKey(now);
   // Litt margin, så ingen booker en time som starter om fem minutter
   const earliest = isToday ? now.getHours() * 60 + now.getMinutes() + 15 : -1;
@@ -130,6 +133,8 @@ export function getAvailableTimes({
 
   for (let start = toMinutes(hours.open); start + durationMin <= close; start += SLOT_INTERVAL_MIN) {
     if (start < earliest) continue;
+    // Behandlingen kan slutte når pausen starter, men ikke gå inn i den
+    if (breaks.some(([from, to]) => start < to && start + durationMin > from)) continue;
     const time = toTime(start);
     const needed = slotTimesFor(time, durationMin);
     const free = staffIds.filter((staffId) => {
@@ -161,6 +166,8 @@ export function openStatus(openingHours: OpeningHours, now: Date, closedDates: s
   const today = hoursForDate(openingHours, now, closedDates);
 
   if (today && minutes >= toMinutes(today.open) && minutes < toMinutes(today.close)) {
+    const pause = today.breaks?.find((item) => minutes >= toMinutes(item.start) && minutes < toMinutes(item.end));
+    if (pause) return { isOpen: false, text: `Pause · åpner igjen ${pause.end}` };
     return { isOpen: true, text: `Åpent til ${today.close}` };
   }
   if (today && minutes < toMinutes(today.open)) {

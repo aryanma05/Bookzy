@@ -30,7 +30,8 @@ export function Stepper({ label, value, onChange, step, min, max, format = Strin
           variant="soft"
           size={36}
           color={value <= min ? colors.textMuted : colors.ink}
-          onPress={() => change(value - step)}
+          // Til nærmeste trinn, så 50 min blir 45 og 60 og ikke 35 og 65
+          onPress={() => change(Math.ceil(value / step) * step - step)}
           accessibilityLabel="Mindre"
         />
         <Text variant="subheading" style={styles.value}>{format(value)}</Text>
@@ -39,7 +40,7 @@ export function Stepper({ label, value, onChange, step, min, max, format = Strin
           variant="soft"
           size={36}
           color={value >= max ? colors.textMuted : colors.ink}
-          onPress={() => change(value + step)}
+          onPress={() => change(Math.floor(value / step) * step + step)}
           accessibilityLabel="Mer"
         />
       </View>

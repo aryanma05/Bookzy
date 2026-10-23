@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import { launchImageLibraryAsync } from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { FormScreen } from '@/components/business/form-screen';
 import { FieldGroup } from '@/components/business/salon-fields';
 import { Button } from '@/components/ui/button';
@@ -13,7 +16,12 @@ import { colors, radius } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
+import { deleteSalonPhoto, THUMBNAIL_SIDE, uploadSalonPhoto } from '@/lib/photos';
 import { formatDuration, SERVICE_GROUPS, shortId, type Service } from '@/lib/salons';
+import { SLOT_INTERVAL_MIN } from '@/lib/schedule';
+
+const MIN_DURATION = 5;
+const MAX_DURATION = 8 * 60;
 
 export default function EditServiceScreen() {
   const router = useRouter();
@@ -25,8 +33,12 @@ export default function EditServiceScreen() {
   const [name, setName] = useState(existing?.name ?? '');
   const [category, setCategory] = useState(existing?.category ?? '');
   const [durationMin, setDurationMin] = useState(existing?.durationMin ?? 60);
+  // Det eieren skriver i minuttfeltet, til +/– brukes igjen. Kan være tomt mens de skriver.
+  const [minutesInput, setMinutesInput] = useState<string | null>(null);
   const [price, setPrice] = useState(existing ? String(existing.priceNok) : '');
   const [description, setDescription] = useState(existing?.description ?? '');
+  const [imageUrl, setImageUrl] = useState(existing?.imageUrl ?? null);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,16 +56,37 @@ export default function EditServiceScreen() {
     ...new Set([...salon.services.map((service) => service.category), ...(SERVICE_GROUPS[salon.category] ?? [])]),
   ].filter(Boolean);
 
+  // Lukene er på 30 minutter, så en behandling på 50 min holder av en hel time i kalenderen
+  const blockedMin = Math.ceil(durationMin / SLOT_INTERVAL_MIN) * SLOT_INTERVAL_MIN;
+
   const done = () => (router.canGoBack() ? router.back() : router.replace('/business/services'));
 
+  const pickImage = async () => {
+    const result = await launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1] });
+    if (result.canceled || !result.assets[0]) return;
+    setUploading(true);
+    try {
+      // shortcut: lagres ikke tjenesten etterpå, blir filen liggende i Storage. Rydd med et script hvis det blir mange.
+      setImageUrl(await uploadSalonPhoto(salon.id, result.assets[0], THUMBNAIL_SIDE));
+    } catch (uploadError) {
+      console.error('Kunne ikke laste opp bildet:', uploadError);
+      showAlert('Noe gikk galt', 'Kunne ikke laste opp bildet. Prøv igjen, eller velg et annet bilde (JPG eller PNG).');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const save = async () => {
-    const priceNok = Number(price.replace(/\s/g, '').replace(',', '.'));
     if (!name.trim()) {
       setError('Gi tjenesten et navn.');
       return;
     }
-    if (!price.trim() || !Number.isFinite(priceNok) || priceNok < 0) {
-      setError('Skriv inn en gyldig pris.');
+    if (minutesInput === '' || durationMin < MIN_DURATION || durationMin > MAX_DURATION) {
+      setError(`Varigheten må være mellom ${MIN_DURATION} minutter og ${formatDuration(MAX_DURATION)}.`);
+      return;
+    }
+    if (!price) {
+      setError('Skriv inn prisen.');
       return;
     }
     setError(null);
@@ -63,8 +96,9 @@ export default function EditServiceScreen() {
       name: name.trim(),
       category: category.trim() || 'Behandlinger',
       durationMin,
-      priceNok: Math.round(priceNok),
+      priceNok: Number(price),
       ...(description.trim() ? { description: description.trim() } : {}),
+      ...(imageUrl ? { imageUrl } : {}),
     };
     try {
       await saveSalon({
@@ -72,6 +106,9 @@ export default function EditServiceScreen() {
           ? salon.services.map((item) => (item.id === existing.id ? service : item))
           : [...salon.services, service],
       });
+      if (existing?.imageUrl && existing.imageUrl !== imageUrl) {
+        deleteSalonPhoto(existing.imageUrl).catch((deleteError) => console.warn('Kunne ikke slette bildefilen:', deleteError));
+      }
       haptics.success();
       done();
     } catch (saveError) {
@@ -97,6 +134,7 @@ export default function EditServiceScreen() {
           onPress: async () => {
             try {
               await saveSalon({ services: salon.services.filter((item) => item.id !== existing.id) });
+              if (existing.imageUrl) deleteSalonPhoto(existing.imageUrl).catch(() => {});
               done();
             } catch (deleteError) {
               console.error('Kunne ikke slette tjenesten:', deleteError);
@@ -115,11 +153,34 @@ export default function EditServiceScreen() {
       footer={
         <>
           {existing && <Button title="Slett" variant="danger" onPress={remove} style={styles.deleteButton} />}
-          <Button title="Lagre" loading={saving} onPress={save} style={styles.flex} />
+          <Button title="Lagre" loading={saving} disabled={uploading} onPress={save} style={styles.flex} />
         </>
       }
     >
       <TextField label="Navn" placeholder="F.eks. Gelénegler" value={name} onChangeText={setName} maxLength={60} />
+
+      <FieldGroup label="Bilde (valgfritt)" hint="Vises ved siden av tjenesten på siden din.">
+        <View style={styles.imageRow}>
+          <View style={styles.thumbnail}>
+            {uploading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : imageUrl ? (
+              <Image source={{ uri: imageUrl }} style={styles.thumbnailImage} contentFit="cover" transition={200} />
+            ) : (
+              <Ionicons name="image-outline" size={26} color={colors.textMuted} />
+            )}
+          </View>
+          <Button
+            title={imageUrl ? 'Bytt bilde' : 'Velg bilde'}
+            variant="secondary"
+            size="sm"
+            icon="image-outline"
+            disabled={uploading}
+            onPress={pickImage}
+          />
+          {imageUrl && !uploading && <Button title="Fjern" variant="ghost" size="sm" onPress={() => setImageUrl(null)} />}
+        </View>
+      </FieldGroup>
 
       <FieldGroup label="Gruppe" hint="Tjenestene vises samlet i grupper på siden din.">
         <TextField placeholder="F.eks. Manikyr" value={category} onChangeText={setCategory} maxLength={40} />
@@ -137,21 +198,46 @@ export default function EditServiceScreen() {
         )}
       </FieldGroup>
 
-      <Stepper
+      <FieldGroup
         label="Varighet"
-        value={durationMin}
-        onChange={setDurationMin}
-        step={15}
-        min={15}
-        max={8 * 60}
-        format={formatDuration}
-      />
+        hint={
+          blockedMin !== durationMin
+            ? `Kundene kan booke hver halve time, så ${formatDuration(durationMin)} holder av ${formatDuration(blockedMin)} i kalenderen.`
+            : 'Bruk + og – for et kvarter av gangen, eller skriv inn antall minutter.'
+        }
+      >
+        <Stepper
+          value={durationMin}
+          onChange={(value) => {
+            setDurationMin(value);
+            setMinutesInput(null);
+          }}
+          step={15}
+          min={15}
+          max={MAX_DURATION}
+          format={formatDuration}
+        />
+        <TextField
+          icon="time-outline"
+          placeholder="Antall minutter, f.eks. 50"
+          value={minutesInput ?? String(durationMin)}
+          onChangeText={(text) => {
+            const digits = text.replace(/\D/g, '');
+            setMinutesInput(digits);
+            if (digits) setDurationMin(Number(digits));
+          }}
+          keyboardType="number-pad"
+          maxLength={3}
+          accessibilityLabel="Varighet i minutter"
+        />
+      </FieldGroup>
 
       <TextField
         label="Pris (kr)"
         placeholder="0"
         value={price}
-        onChangeText={setPrice}
+        // Bare hele kroner, så bokstaver, mellomrom og komma tas bort med en gang
+        onChangeText={(text) => setPrice(text.replace(/\D/g, ''))}
         keyboardType="number-pad"
         maxLength={7}
       />
@@ -178,5 +264,16 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   deleteButton: { minWidth: 110 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  imageRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  thumbnail: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.divider,
+  },
+  thumbnailImage: { width: '100%', height: '100%' },
   error: { padding: 12, borderRadius: radius.md, backgroundColor: colors.dangerSoft },
 });

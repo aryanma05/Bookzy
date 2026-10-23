@@ -21,6 +21,8 @@ function createAuth(): Auth {
 }
 
 export const auth = createAuth();
+// E-postene fra Firebase (bekreft e-post, nytt passord) og SMS-koden på norsk i stedet for engelsk
+auth.languageCode = 'no';
 
 if (emulatorHost && !auth.emulatorConfig) {
   connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });

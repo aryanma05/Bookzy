@@ -129,6 +129,20 @@ export function Timeline({ columns, now, onPressBooking, showStaff = false }: Ti
                 {open !== null && close !== null && (
                   <View style={[styles.openArea, { top: (open - startMin) * PER_MINUTE, height: (close - open) * PER_MINUTE }]} />
                 )}
+                {column.hours?.breaks?.map((pause) => (
+                  <View
+                    key={pause.start}
+                    style={[
+                      styles.breakArea,
+                      {
+                        top: (toMinutes(pause.start) - startMin) * PER_MINUTE,
+                        height: (toMinutes(pause.end) - toMinutes(pause.start)) * PER_MINUTE,
+                      },
+                    ]}
+                  >
+                    <Text variant="caption" color={colors.textMuted} numberOfLines={1}>Pause</Text>
+                  </View>
+                ))}
                 {hours.map((minutes) => (
                   <View key={minutes} style={[styles.hourLine, { top: (minutes - startMin) * PER_MINUTE }]} />
                 ))}
@@ -228,6 +242,7 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.border,
   },
   openArea: { position: 'absolute', left: 0, right: 0, backgroundColor: colors.surface },
+  breakArea: { position: 'absolute', left: 0, right: 0, alignItems: 'center', overflow: 'hidden', backgroundColor: colors.divider },
   hourLine: {
     position: 'absolute',
     left: 0,

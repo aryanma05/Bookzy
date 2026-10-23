@@ -89,20 +89,28 @@ export default function SalonScreen() {
     );
   }
 
+  // Eieren kommer hit fra «Se siden slik kundene ser den» og skal tilbake til bedriftsmodus
+  const owner = !!user && salon.ownerId === user.uid;
+
   // På PC viser nettsiden alt på én bred side i stedet for faner
   if (Platform.OS === 'web' && width >= 900) {
-    return <SalonPage salon={salon} />;
+    return <SalonPage salon={salon} owner={owner} />;
   }
 
-  return <SalonDetails salon={salon} />;
+  return <SalonDetails salon={salon} owner={owner} />;
+}
+
+function useGoBack(owner: boolean) {
+  const router = useRouter();
+  return () => (router.canGoBack() ? router.back() : router.replace(owner ? '/business/salon' : '/explore'));
 }
 
 function salonPhotos(salon: Salon) {
   return salon.photos.length > 0 ? salon.photos : salon.imageUrl ? [salon.imageUrl] : [];
 }
 
-function SalonDetails({ salon }: { salon: Salon }) {
-  const router = useRouter();
+function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
+  const goBack = useGoBack(owner);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { reviews, loading: reviewsLoading } = useSalonReviews(salon.id, salon.reviewCount);
@@ -193,7 +201,7 @@ function SalonDetails({ salon }: { salon: Salon }) {
       </Animated.ScrollView>
 
       <Animated.View style={[styles.header, { paddingTop: insets.top + 8, height: headerHeight }, headerStyle]}>
-        <IconButton icon="chevron-back" accessibilityLabel="Tilbake" onPress={() => (router.canGoBack() ? router.back() : router.replace('/explore'))} />
+        <IconButton icon="chevron-back" accessibilityLabel={owner ? 'Tilbake til salongen' : 'Tilbake'} onPress={goBack} />
         <Animated.View style={[styles.headerTitle, titleStyle]}>
           <Text variant="subheading" numberOfLines={1} align="center" style={styles.headerTitleText}>{salon.name}</Text>
         </Animated.View>
@@ -207,7 +215,8 @@ function SalonDetails({ salon }: { salon: Salon }) {
 }
 
 /** Salongsiden på PC: bilder øverst, tjenester og anmeldelser til venstre, info til høyre. */
-function SalonPage({ salon }: { salon: Salon }) {
+function SalonPage({ salon, owner }: { salon: Salon; owner: boolean }) {
+  const goBack = useGoBack(owner);
   const { reviews, loading: reviewsLoading } = useSalonReviews(salon.id, salon.reviewCount);
   const photos = salonPhotos(salon);
 
@@ -216,6 +225,16 @@ function SalonPage({ salon }: { salon: Salon }) {
       <WebHeader />
       <ScrollView>
         <View style={styles.pageInner}>
+          {owner && (
+            <Button
+              title="Tilbake til salongen"
+              variant="ghost"
+              size="sm"
+              icon="chevron-back"
+              onPress={goBack}
+              style={styles.pageBack}
+            />
+          )}
           <View style={styles.photoGrid}>
             {photos.length === 0 ? (
               <SalonPhoto salon={salon} style={styles.photoMain} iconSize={64} />
@@ -285,10 +304,17 @@ function SalonIntro({ salon, onRatingPress }: { salon: Salon; onRatingPress?: ()
           {displayAddress(salon)}{distance ? ` · ${distance}` : ''}
         </Text>
       </View>
-      <View style={styles.metaRow}>
-        <View style={[styles.statusDot, { backgroundColor: status.isOpen ? colors.success : colors.textMuted }]} />
-        <Text variant="caption" color={status.isOpen ? colors.success : colors.textSecondary}>{status.text}</Text>
-      </View>
+      {salon.flexibleHours ? (
+        <View style={styles.metaRow}>
+          <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
+          <Text variant="caption">Fleksible tider</Text>
+        </View>
+      ) : (
+        <View style={styles.metaRow}>
+          <View style={[styles.statusDot, { backgroundColor: status.isOpen ? colors.success : colors.textMuted }]} />
+          <Text variant="caption" color={status.isOpen ? colors.success : colors.textSecondary}>{status.text}</Text>
+        </View>
+      )}
 
       <View style={styles.actions}>
         {salon.phone && <QuickAction icon="call-outline" label="Ring" onPress={() => callSalon(salon)} />}
@@ -316,6 +342,9 @@ function ServiceList({ salon }: { salon: Salon }) {
           <Text variant="overline">{group.category}</Text>
           {group.services.map((service, index) => (
             <View key={service.id} style={[styles.service, index < group.services.length - 1 && styles.serviceDivider]}>
+              {service.imageUrl ? (
+                <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} contentFit="cover" transition={200} />
+              ) : null}
               <View style={styles.serviceText}>
                 <Text variant="bodyStrong">{service.name}</Text>
                 {service.description ? <Text variant="caption">{service.description}</Text> : null}
@@ -362,16 +391,24 @@ function AboutSalon({ salon }: { salon: Salon }) {
       {salon.description ? <Text variant="body">{salon.description}</Text> : null}
 
       <View style={styles.aboutBlock}>
-        <Text variant="subheading">Åpningstider</Text>
-        {WEEK.map(({ key, label }) => {
+        <Text variant="subheading">{salon.flexibleHours ? 'Tider' : 'Åpningstider'}</Text>
+        {salon.flexibleHours && (
+          <Text variant="body" color={colors.textSecondary}>Ingen faste åpningstider. Du ser de ledige timene når du booker.</Text>
+        )}
+        {!salon.flexibleHours && WEEK.map(({ key, label }) => {
           const hours = salon.openingHours[key];
           const isToday = key === today;
           return (
             <View key={key} style={styles.hoursRow}>
               <Text variant={isToday ? 'bodyStrong' : 'body'}>{label}</Text>
-              <Text variant={isToday ? 'bodyStrong' : 'body'} color={hours ? undefined : colors.textMuted}>
-                {hours ? `${hours.open}–${hours.close}` : 'Stengt'}
-              </Text>
+              <View style={styles.hoursValue}>
+                <Text variant={isToday ? 'bodyStrong' : 'body'} color={hours ? undefined : colors.textMuted}>
+                  {hours ? `${hours.open}–${hours.close}` : 'Stengt'}
+                </Text>
+                {hours?.breaks?.map((pause) => (
+                  <Text key={pause.start} variant="caption">Pause {pause.start}–{pause.end}</Text>
+                ))}
+              </View>
             </View>
           );
         })}
@@ -476,10 +513,12 @@ const styles = StyleSheet.create({
   service: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   serviceDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   serviceText: { flex: 1, gap: 2 },
+  serviceImage: { width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.divider },
   reviewSkeletons: { gap: 12, marginTop: 12 },
   about: { gap: 24 },
   aboutBlock: { gap: 10 },
   hoursRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  hoursValue: { alignItems: 'flex-end' },
   staffRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   header: {
     position: 'absolute',
@@ -497,6 +536,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: 10 },
   page: { flex: 1, backgroundColor: colors.surface },
   pageInner: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 64 },
+  pageBack: { alignSelf: 'flex-start', marginBottom: 12, marginLeft: -12 },
   photoGrid: { flexDirection: 'row', gap: 8, height: 400, borderRadius: radius.xl, overflow: 'hidden' },
   photoMain: { flex: 2, height: '100%', backgroundColor: colors.divider },
   photoSide: { flex: 1, gap: 8 },

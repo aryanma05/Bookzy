@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { showAlert } from '@/lib/alert';
@@ -15,6 +16,14 @@ export function useEmailVerification() {
       if (user?.email && !emailVerified) refreshEmailVerified().catch(() => {});
     }, [user, emailVerified, refreshEmailVerified])
   );
+
+  // På nettet åpnes lenken ofte i en annen fane, og skjermen får ikke fokus på nytt når man kommer tilbake
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !user?.email || emailVerified) return;
+    const check = () => refreshEmailVerified().catch(() => {});
+    window.addEventListener('focus', check);
+    return () => window.removeEventListener('focus', check);
+  }, [user, emailVerified, refreshEmailVerified]);
 
   const send = async () => {
     try {

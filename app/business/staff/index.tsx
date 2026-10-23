@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
+import { showAlert } from '@/lib/alert';
 
 export default function StaffScreen() {
   const router = useRouter();
@@ -16,11 +17,20 @@ export default function StaffScreen() {
 
   const solo = salon.staff.length === 1;
 
+  // Hver ansatt lagres på sin egen skjerm. Knappen bekrefter det og går tilbake til menyen.
+  const done = () =>
+    showAlert('Ansatte er lagret', `Kundene kan booke hos ${solo ? 'deg' : `alle ${salon.staff.length}`}.`, [
+      { text: 'OK', onPress: () => (router.canGoBack() ? router.back() : router.replace('/business/salon')) },
+    ]);
+
   return (
     <FormScreen
-      title="Hvem tar imot kunder"
+      title="Ansatte"
       footer={
-        <Button title="Legg til person" icon="person-add-outline" variant="secondary" onPress={() => router.push('/business/staff/new')} style={styles.flex} />
+        <>
+          <Button title="Legg til ansatt" icon="person-add-outline" variant="secondary" onPress={() => router.push('/business/staff/new')} style={styles.flex} />
+          <Button title="Lagre" onPress={done} style={styles.flex} />
+        </>
       }
     >
       <Text variant="body" color={colors.textSecondary}>

@@ -84,6 +84,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     paddingVertical: 12,
+    // Feltet rundt viser fokus. Nettleserens egen ramme (outline-style: auto) tegnes selv med bredde 0.
+    outlineStyle: 'solid',
     outlineWidth: 0,
   },
   inputMultiline: { minHeight: 80, paddingVertical: 0, textAlignVertical: 'top' },

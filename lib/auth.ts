@@ -5,6 +5,8 @@ import { app, emulatorHost } from './firebase';
 
 // Web: Firebase lagrer innloggingen i nettleseren selv. iOS/Android bruker auth.native.ts.
 export const auth = getAuth(app);
+// E-postene fra Firebase (bekreft e-post, nytt passord) og SMS-koden på norsk i stedet for engelsk
+auth.languageCode = 'no';
 
 if (emulatorHost) {
   connectAuthEmulator(auth, `http://${emulatorHost}:9099`, { disableWarnings: true });

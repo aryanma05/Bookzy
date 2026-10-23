@@ -483,6 +483,7 @@ describe('redigere salongen', () => {
         salonData({
           services: [{ id: 'klipp', name: 'Klipp', category: 'Klipp', durationMin: 45, priceNok: 500 }],
           openingHours: { mon: { open: '10:00', close: '18:00' }, tue: null },
+          flexibleHours: true,
           closedDates: ['2099-01-20', '2099-01-21_maria'],
         })
       )
@@ -502,6 +503,7 @@ describe('redigere salongen', () => {
     await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ cancellationHours: -1 })));
     await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ locationType: 'slott' })));
     await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ openingHours: { mandag: null } })));
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ flexibleHours: 'ja' })));
   });
 
   test('kan ikke slette salongen', async () => {
