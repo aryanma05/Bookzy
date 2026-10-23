@@ -146,6 +146,51 @@ export function getAvailableTimes({
   return result;
 }
 
+export type OverviewTime = { time: string; booked: boolean };
+
+/**
+ * Ledige og bookede starttider for én dag, til oversikten salongen deler på f.eks. Instagram.
+ * Ledige tider legges etter hverandre (13:00 og 16:00 for en tretimers behandling), ikke hver halvtime.
+ */
+export function dayOverview({
+  openingHours,
+  closedDates,
+  date,
+  durationMin,
+  staffIds,
+  bookings,
+  now,
+}: {
+  openingHours: OpeningHours;
+  closedDates: string[];
+  date: Date;
+  durationMin: number;
+  staffIds: string[];
+  bookings: { time: string; durationMin: number; staffId: string }[];
+  now: Date;
+}): OverviewTime[] {
+  const taken: TakenSlots = new Map();
+  for (const booking of bookings) {
+    if (!taken.has(booking.staffId)) taken.set(booking.staffId, new Set());
+    for (const slot of slotTimesFor(booking.time, booking.durationMin)) taken.get(booking.staffId)!.add(slot);
+  }
+
+  // shortcut: med flere ansatte vises hver tid én gang og som om én person tar alle timene; del opp per ansatt hvis større salonger trenger det
+  const free: string[] = [];
+  if (toDateKey(date) >= toDateKey(now)) {
+    let next = 0;
+    for (const { time } of getAvailableTimes({ openingHours, closedDates, date, durationMin, staffIds, taken, now })) {
+      if (toMinutes(time) < next) continue;
+      free.push(time);
+      next = toMinutes(time) + durationMin;
+    }
+  }
+  const booked = [...new Set(bookings.map((booking) => booking.time))].filter((time) => !free.includes(time));
+  return [...free.map((time) => ({ time, booked: false })), ...booked.map((time) => ({ time, booked: true }))].sort((a, b) =>
+    a.time.localeCompare(b.time)
+  );
+}
+
 export function groupByPeriod<T extends { time: string }>(items: T[]) {
   const groups = [
     { label: 'Morgen', items: [] as T[] },
