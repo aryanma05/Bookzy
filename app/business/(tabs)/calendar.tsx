@@ -77,8 +77,9 @@ export default function CalendarScreen() {
   const filter = staffFilter && salon.staff.some((member) => member.id === staffFilter) ? staffFilter : null;
   const visible = (bookings ?? []).filter((booking) => !filter || booking.staffId === filter);
   const active = visible.filter((booking) => booking.status !== 'cancelled');
-  const dayBookings = active.filter((booking) => booking.date === dateKey);
-  const dayCancelled = visible.filter((booking) => booking.date === dateKey && booking.status === 'cancelled').length;
+  const dayVisible = visible.filter((booking) => booking.date === dateKey);
+  const dayBookings = dayVisible.filter((booking) => booking.status !== 'cancelled');
+  const dayCancelled = dayVisible.length - dayBookings.length;
 
   const isCurrent = mode === 'day' ? dateKey === todayKey : toDateKey(monday) === toDateKey(startOfWeek(now));
   const step = (direction: 1 | -1) => setDateKey(toDateKey(addDays(date, direction * (mode === 'day' ? 1 : 7))));
@@ -110,11 +111,11 @@ export default function CalendarScreen() {
         hours: status.hours,
         closedLabel: status.label,
         isToday: dateKey === todayKey,
-        bookings: dayBookings.filter((booking) => booking.staffId === member.id),
+        bookings: dayVisible.filter((booking) => booking.staffId === member.id),
       };
     });
     // Timer hos noen som ikke lenger står på listen over ansatte
-    const others = filter ? [] : dayBookings.filter((booking) => !salon.staff.some((member) => member.id === booking.staffId));
+    const others = filter ? [] : dayVisible.filter((booking) => !salon.staff.some((member) => member.id === booking.staffId));
     if (others.length > 0) {
       columns.push({ key: 'others', title: 'Andre', hours: null, isToday: dateKey === todayKey, bookings: others });
     }
@@ -134,7 +135,7 @@ export default function CalendarScreen() {
         closedLabel: status.label,
         isToday: key === todayKey,
         highlight: key === todayKey,
-        bookings: active.filter((booking) => booking.date === key),
+        bookings: visible.filter((booking) => booking.date === key),
         onPressTitle: () => openDay(key),
       };
     });

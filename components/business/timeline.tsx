@@ -36,7 +36,10 @@ type Placed = { booking: Booking; lane: number; lanes: number };
 
 /** Timer som overlapper (hos ulike ansatte) legges ved siden av hverandre. */
 function placeBookings(bookings: Booking[]): Placed[] {
-  const sorted = [...bookings].sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
+  // Avbestilte timer havner til høyre for en ny time på samme tid
+  const sorted = [...bookings].sort(
+    (a, b) => toMinutes(a.time) - toMinutes(b.time) || Number(a.status === 'cancelled') - Number(b.status === 'cancelled')
+  );
   const placed: Placed[] = [];
   let group: Placed[] = [];
   let laneEnds: number[] = [];
@@ -68,6 +71,7 @@ function placeBookings(bookings: Booking[]): Placed[] {
 }
 
 function blockColors(booking: Booking, now: Date) {
+  if (booking.status === 'cancelled') return { background: colors.dangerSoft, bar: colors.danger, text: colors.textMuted };
   if (booking.status === 'noShow') return { background: colors.warningSoft, bar: colors.warning, text: colors.text };
   if (booking.endAt.getTime() <= now.getTime()) return { background: colors.divider, bar: colors.textMuted, text: colors.textSecondary };
   return { background: colors.primarySoft, bar: colors.primary, text: colors.ink };
@@ -156,7 +160,9 @@ export function Timeline({ columns, now, onPressBooking, showStaff = false }: Ti
                   const top = (toMinutes(booking.time) - startMin) * PER_MINUTE;
                   const blockHeight = Math.max(booking.durationMin * PER_MINUTE - 2, 24);
                   const palette = blockColors(booking, now);
+                  const cancelled = booking.status === 'cancelled';
                   const isNew =
+                    !cancelled &&
                     booking.createdAt !== null &&
                     now.getTime() - booking.createdAt.getTime() < DAY_MS &&
                     booking.startAt.getTime() > now.getTime();
@@ -175,17 +181,18 @@ export function Timeline({ columns, now, onPressBooking, showStaff = false }: Ti
                         pressed && styles.blockPressed,
                       ]}
                       accessibilityRole="button"
-                      accessibilityLabel={`${booking.time} ${booking.customerName}, ${booking.serviceName}`}
+                      accessibilityLabel={`${booking.time} ${booking.customerName}, ${booking.serviceName}${cancelled ? ', avbestilt' : ''}`}
                     >
                       <View style={[styles.blockInner, { backgroundColor: palette.background, borderLeftColor: palette.bar }]}>
                         <Text numberOfLines={1} style={[styles.blockTime, { color: palette.text }]}>
                           {blockHeight < 38
                             ? `${booking.time} ${booking.customerName}`
                             : formatTimeRange(booking.time, booking.durationMin)}
+                          {cancelled ? <Text style={styles.cancelledTag}>  AVBESTILT</Text> : null}
                           {isNew ? <Text style={styles.newTag}>  NY</Text> : null}
                         </Text>
                         {blockHeight >= 38 && (
-                          <Text numberOfLines={1} style={[styles.blockName, { color: palette.text }]}>
+                          <Text numberOfLines={1} style={[styles.blockName, { color: palette.text }, cancelled && styles.struck]}>
                             {booking.customerName || 'Kunde'}
                           </Text>
                         )}
@@ -265,6 +272,8 @@ const styles = StyleSheet.create({
   blockName: { fontFamily: fonts.bold, fontSize: 13, lineHeight: 17 },
   blockService: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16 },
   newTag: { fontFamily: fonts.extrabold, fontSize: 10, color: colors.primary },
+  cancelledTag: { fontFamily: fonts.extrabold, fontSize: 10, color: colors.danger },
+  struck: { textDecorationLine: 'line-through' },
   nowLine: { position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: colors.danger },
   nowDot: {
     position: 'absolute',
