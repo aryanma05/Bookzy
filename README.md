@@ -26,7 +26,7 @@ Bookzy is built first and foremost for home-based salons, solo technicians and s
 - Register a business in one form: name, category, home salon or salon/studio, area and contact info. The owner becomes the first person customers can book with, so a solo business doesn't need to set up staff at all
 - Home salons can leave the address empty; customers then only see the area
 - New businesses are hidden from customers until they have added services and choose to publish
-- Calendar with day and week views. On a phone the week is a list per day; on a wide screen it's a seven-day grid and the menu moves to a sidebar. With several staff members, the day view has one column per person and can be filtered
+- Calendar with day and week views. On a phone the week is a list per day; on a wide screen it's a seven-day grid and the menu moves to a sidebar. With several staff members, the day view has one column per person and can be filtered. Cancelled appointments stay in the calendar in red, marked "Avbestilt"
 - Appointment details with the customer's name, phone (call/SMS), note and history at the salon (number of visits and no-shows)
 - The salon can cancel an appointment at any time (the slot is freed and the customer sees that the salon cancelled), and mark "didn't show up" once it has started
 - Services (name, group, duration, price, description and an optional thumbnail), staff, opening hours, days off and holidays for the whole salon or one person, cancellation deadline and profile. The duration is set in quarters with + and –, or typed in minutes. Bookings still start every half hour and take whole half hours in the calendar, so a 50-minute service holds an hour; the form says so
