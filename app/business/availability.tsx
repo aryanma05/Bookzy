@@ -225,7 +225,13 @@ export default function AvailabilityScreen() {
         await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Del ledige timer' });
         return;
       }
-      const uri = await captureRef(posterRef, { format: 'png', quality: 1, result: 'data-uri' });
+      // html2canvas kopierer hele siden og venter uten tidsgrense på hvert bilde i kopien. Lazy-bilder
+      // (standard i expo-image) lastes aldri der i Safari, så da lastet knappen for evig.
+      document.querySelectorAll<HTMLImageElement>('img[loading="lazy"]').forEach((img) => (img.loading = 'eager'));
+      const uri = await Promise.race([
+        captureRef(posterRef, { format: 'png', quality: 1, result: 'data-uri' }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Brukte for lang tid på å lage bildet')), 20_000)),
+      ]);
       const file = new File([await (await fetch(uri)).blob()], 'ledige-timer.png', { type: 'image/png' });
       if (!(await shareOnWeb(file, true))) setPrepared({ file, madeFor: posterInputs });
     } catch (shareError) {
