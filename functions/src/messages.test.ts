@@ -77,6 +77,52 @@ describe('varsler til salongen', () => {
   });
 });
 
+describe('forespørsler', () => {
+  test('salongen får beskjed om ny forespørsel', () => {
+    const push = messages.newRequestPush(booking(), NOW);
+    assert.equal(push.title, 'Ny forespørsel');
+    assert.equal(push.body, 'Kari N. vil booke Herreklipp i morgen kl 10:00.');
+    const email = messages.newRequestEmail(booking(), 'https://bookzy.no/business/booking/abc123');
+    assert.equal(email.subject, 'Ny forespørsel: Kari Nordmann, lørdag 10. oktober kl 10:00');
+    assert.match(email.text, /Telefon: 40000000/);
+    assert.match(email.text, /Svar på forespørselen: https:\/\/bookzy\.no\/business\/booking\/abc123/);
+  });
+
+  test('flyttet forespørsel', () => {
+    const push = messages.newRequestPush(booking(), NOW, booking({ date: '2026-10-08', time: '12:00' }));
+    assert.match(push.body, /fra torsdag 8\. oktober kl 12:00 til i morgen kl 10:00 og venter på svar/);
+    assert.match(messages.newRequestEmail(booking(), null, booking()).text, /Den gamle tiden er ledig igjen/);
+  });
+
+  test('kvitteringen til kunden er uten adresse', () => {
+    const email = messages.requestReceipt(booking(), null);
+    assert.equal(email.subject, 'Forespørsel sendt: Herreklipp lørdag 10. oktober kl 10:00');
+    assert.doesNotMatch(email.text, /Thorvald Meyers/);
+    assert.doesNotMatch(email.html, /Thorvald Meyers/);
+  });
+
+  test('godkjent time har adressen', () => {
+    const push = messages.approvedPush(booking(), NOW);
+    assert.equal(push.title, 'Timen er godkjent');
+    assert.equal(push.body, 'Salong Nord har godkjent Herreklipp i morgen kl 10:00. Adresse: Thorvald Meyers gate 1, Oslo.');
+    const email = messages.approvedReceipt(booking(), NOW, null);
+    assert.equal(email.subject, 'Godkjent: Herreklipp lørdag 10. oktober kl 10:00');
+    assert.match(email.text, /Sted: Thorvald Meyers gate 1, Oslo/);
+  });
+
+  test('avslag uten adresse og uten å be kunden ta kontakt', () => {
+    const texts = [
+      messages.declinedPush(booking(), NOW).body,
+      messages.declinedEmail(booking(), null).text,
+      messages.declinedSms(booking(), null),
+    ];
+    assert.equal(texts[0], 'Salong Nord kunne dessverre ikke ta imot bookingen din i morgen kl 10:00.');
+    for (const text of texts) {
+      assert.doesNotMatch(text, /Thorvald Meyers|22000000|ring|kontakt/);
+    }
+  });
+});
+
 describe('sikkerhet', () => {
   test('HTML fra kunden escapes i e-posten', () => {
     const email = messages.newBookingEmail(
@@ -144,12 +190,25 @@ describe('SMS til kunder som booket med mobilnummer', () => {
     );
   });
 
+  test('godkjent og avslått forespørsel', () => {
+    assert.equal(
+      messages.approvedSms(booking(), null),
+      'Godkjent: Herreklipp hos Salong Nord lørdag 10. oktober kl 10:00, Thorvald Meyers gate 1, Oslo.'
+    );
+    assert.equal(
+      messages.declinedSms(booking(), null),
+      'Salong Nord kunne dessverre ikke ta imot bookingen din lørdag 10. oktober kl 10:00.'
+    );
+  });
+
   test('får plass i én SMS', () => {
     const texts = [
       messages.bookingSms(booking(), bookingLink),
       messages.bookingSms(booking(), bookingLink, booking()),
       messages.cancelledBySalonSms(booking(), salonLink),
       messages.reminderSms(booking(), NOW, bookingLink),
+      messages.approvedSms(booking(), bookingLink),
+      messages.declinedSms(booking(), salonLink),
     ];
     for (const text of texts) {
       assert.ok(text.length <= 160, `${text.length} tegn: ${text}`);
