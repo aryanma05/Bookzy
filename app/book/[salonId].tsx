@@ -23,6 +23,7 @@ import {
   getAvailableTimes,
   hoursForDate,
   isDayOff,
+  REQUEST_LEAD_HOURS,
   toDateKey,
   upcomingDates,
 } from '@/lib/schedule';
@@ -80,6 +81,7 @@ export default function ChooseTimeScreen() {
           staffIds,
           taken,
           now,
+          leadMin: salon.requiresApproval ? REQUEST_LEAD_HOURS * 60 : undefined,
         })
       : [];
   const time = chosenTime && available.some((item) => item.time === chosenTime) ? chosenTime : null;
@@ -154,6 +156,11 @@ export default function ChooseTimeScreen() {
 
         <View style={[styles.section, styles.times]}>
           <Text variant="heading">Ledige tider {formatDay(date, now).toLowerCase()}</Text>
+          {salon.requiresApproval && (
+            <Text variant="caption">
+              {salon.name} godkjenner bookingene selv, så du kan bare be om tider minst {REQUEST_LEAD_HOURS} timer frem.
+            </Text>
+          )}
           {isClosed ? (
             <EmptyState
               icon="moon-outline"

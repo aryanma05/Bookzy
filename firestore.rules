@@ -159,9 +159,12 @@ service cloud.firestore {
           'slotIds', 'status', 'createdAt', 'replacesBookingId'
         ])
         && request.resource.data.userId == request.auth.uid
-        // Hos salonger som godkjenner bookinger selv, blir timen en forespørsel
+        // Hos salonger som godkjenner bookinger selv, blir timen en forespørsel, og den må sendes minst 3 timer før
+        // (REQUEST_LEAD_HOURS i appen), så salongen rekker å svare
         && request.resource.data.status
           == (get(salonPath(request.resource.data.salonId)).data.get('requiresApproval', false) ? 'pending' : 'confirmed')
+        && (request.resource.data.status == 'confirmed'
+          || request.resource.data.startAt >= request.time + duration.value(3, 'h'))
         && request.resource.data.createdAt == request.time
         && request.resource.data.customerPhone is string
         && request.resource.data.customerPhone.size() <= 20

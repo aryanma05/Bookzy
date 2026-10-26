@@ -2,6 +2,9 @@
 
 export const SLOT_INTERVAL_MIN = 30;
 
+/** Hvor lenge før timen en forespørsel må sendes, så salongen rekker å svare. Samme som i firestore.rules. */
+export const REQUEST_LEAD_HOURS = 3;
+
 export type WeekdayKey = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
 export type TimeRange = { start: string; end: string };
 /** `breaks` er pauser der kundene ikke kan booke, f.eks. lunsj. */
@@ -111,6 +114,7 @@ export function getAvailableTimes({
   staffIds: requestedStaffIds,
   taken,
   now,
+  leadMin = 15,
 }: {
   openingHours: OpeningHours;
   closedDates?: string[];
@@ -119,6 +123,8 @@ export function getAvailableTimes({
   staffIds: string[];
   taken: TakenSlots;
   now: Date;
+  /** Hvor lenge det minst må være til timen. Litt margin, så ingen booker en time som starter om fem minutter. */
+  leadMin?: number;
 }): AvailableTime[] {
   const hours = hoursForDate(openingHours, date, closedDates);
   const staffIds = requestedStaffIds.filter((staffId) => !isDayOff(closedDates, toDateKey(date), staffId));
@@ -126,9 +132,16 @@ export function getAvailableTimes({
 
   const close = toMinutes(hours.close);
   const breaks = (hours.breaks ?? []).map((pause) => [toMinutes(pause.start), toMinutes(pause.end)]);
-  const isToday = toDateKey(date) === toDateKey(now);
-  // Litt margin, så ingen booker en time som starter om fem minutter
-  const earliest = isToday ? now.getHours() * 60 + now.getMinutes() + 15 : -1;
+  // Kan havne neste dag, f.eks. kl 22 med tre timers frist
+  const earliestAt = new Date(now.getTime() + leadMin * 60_000);
+  const dateKey = toDateKey(date);
+  const earliestKey = toDateKey(earliestAt);
+  const earliest =
+    dateKey < earliestKey
+      ? Infinity
+      : dateKey === earliestKey
+        ? earliestAt.getHours() * 60 + earliestAt.getMinutes() + (earliestAt.getSeconds() > 0 ? 1 : 0)
+        : -1;
   const result: AvailableTime[] = [];
 
   for (let start = toMinutes(hours.open); start + durationMin <= close; start += SLOT_INTERVAL_MIN) {
