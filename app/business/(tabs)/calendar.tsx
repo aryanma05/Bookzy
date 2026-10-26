@@ -15,7 +15,7 @@ import { colors, fonts, radius, shadows } from '@/constants/theme';
 import type { Booking } from '@/context/BookingContext';
 import { useBusiness } from '@/context/BusinessContext';
 import { useNow } from '@/hooks/use-now';
-import { useSalonBookings } from '@/hooks/use-salon-bookings';
+import { usePendingBookings, useSalonBookings } from '@/hooks/use-salon-bookings';
 import { formatPrice, type Salon } from '@/lib/salons';
 import {
   addDays,
@@ -68,6 +68,7 @@ export default function CalendarScreen() {
   const weekDays = upcomingDates(monday, 7);
   // Hele uka hentes uansett, så det går raskt å bla mellom dagene
   const { bookings, error } = useSalonBookings(salon?.id ?? null, toDateKey(monday), toDateKey(weekDays[6]));
+  const requests = usePendingBookings(salon?.id ?? null).filter((booking) => booking.startAt.getTime() > now.getTime());
 
   if (!salon) return null;
 
@@ -203,6 +204,18 @@ export default function CalendarScreen() {
         </PressableScale>
       )}
 
+      {requests.length > 0 && (
+        <PressableScale style={styles.banner} scaleTo={0.99} onPress={() => openBooking(requests[0])}>
+          <Ionicons name="hourglass-outline" size={18} color={colors.warning} />
+          <Text variant="caption" color={colors.text} style={styles.flex}>
+            {requests.length === 1
+              ? `${requests[0].customerName || 'En kunde'} venter på svar om ${formatShortDate(requests[0].startAt)} kl ${requests[0].time}.`
+              : `${requests.length} forespørsler venter på svar. Den første er ${formatShortDate(requests[0].startAt)} kl ${requests[0].time}.`}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+        </PressableScale>
+      )}
+
       {error ? (
         <EmptyState icon="cloud-offline-outline" title="Kunne ikke hente kalenderen" message="Sjekk nettet og prøv igjen." />
       ) : bookings === null ? (
@@ -257,7 +270,9 @@ function AgendaRow({ booking, now, showStaff, onPress }: { booking: Booking; now
       ? { label: 'Avbestilt', color: colors.danger, background: colors.dangerSoft }
       : booking.status === 'noShow'
         ? { label: 'Møtte ikke', color: colors.warning, background: colors.warningSoft }
-        : null;
+        : booking.status === 'pending'
+          ? { label: 'Venter på svar', color: colors.warning, background: colors.warningSoft }
+          : null;
 
   return (
     <Pressable

@@ -50,6 +50,10 @@ export type Salon = {
   cancellationHours: number;
   /** Nye bedrifter er skjult for kundene til eieren publiserer siden. */
   published: boolean;
+  /** Salongens egne vilkår, som kunden må godta før de booker. Tom = ingen. */
+  terms: string;
+  /** Eieren godkjenner hver booking selv. Kunden får adressen først når timen er godkjent. */
+  requiresApproval: boolean;
 };
 
 export function unsplash(photoId: string, width = 800) {
@@ -136,6 +140,8 @@ export function toSalon(id: string, data: DocumentData): Salon {
     cancellationHours: typeof data.cancellationHours === 'number' ? data.cancellationHours : 24,
     // Salongene fra før feltet fantes, er synlige
     published: data.published !== false,
+    terms: typeof data.terms === 'string' ? data.terms : '',
+    requiresApproval: data.requiresApproval === true,
   };
 }
 

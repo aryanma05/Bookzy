@@ -11,7 +11,7 @@ import { ScreenHeader } from '@/components/ui/screen-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { colors, fonts, radius, shadows } from '@/constants/theme';
-import { canCancel, useBookings } from '@/context/BookingContext';
+import { canCancel, isUpcoming, useBookings } from '@/context/BookingContext';
 import { useSalons } from '@/context/SalonsContext';
 import { useNow } from '@/hooks/use-now';
 import { useReviewedBookings } from '@/hooks/use-reviewed-bookings';
@@ -65,8 +65,11 @@ export default function BookingDetailsScreen() {
   }
 
   const status = bookingStatus(booking, now);
-  const isUpcoming = booking.status === 'confirmed' && booking.endAt.getTime() > now.getTime();
-  const isCompleted = booking.status === 'confirmed' && !isUpcoming;
+  const upcoming = isUpcoming(booking, now);
+  const isCompleted = booking.status === 'confirmed' && !upcoming;
+  // Hos salonger som godkjenner selv, kommer adressen med den godkjente timen
+  const address = booking.address || salon?.address || '';
+  const place = booking.address || (salon ? displayAddress(salon) : '');
   const cancellable = canCancel(booking, now);
   const endTime = toTime(toMinutes(booking.time) + booking.durationMin);
 
@@ -115,7 +118,7 @@ export default function BookingDetailsScreen() {
           {salon ? <SalonPhoto salon={salon} style={styles.salonImage} iconSize={24} /> : <View style={styles.salonImage} />}
           <View style={styles.salonText}>
             <Text variant="heading" numberOfLines={1}>{booking.salonName}</Text>
-            {salon && <Text variant="caption" numberOfLines={1}>{displayAddress(salon)}</Text>}
+            {place ? <Text variant="caption" numberOfLines={1}>{place}</Text> : null}
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </PressableScale>
@@ -141,8 +144,16 @@ export default function BookingDetailsScreen() {
           ) : null}
         </View>
 
-        {isUpcoming && (
+        {upcoming && (
           <View style={styles.actions}>
+            {booking.status === 'pending' && (
+              <View style={[styles.notice, styles.waiting]}>
+                <Ionicons name="hourglass-outline" size={18} color={colors.primaryDark} />
+                <Text variant="caption" color={colors.text} style={styles.flex}>
+                  {booking.salonName} har ikke godkjent timen ennå. Adressen vises her når den er godkjent.
+                </Text>
+              </View>
+            )}
             {cancellable ? (
               <>
                 <View style={styles.buttonRow}>
@@ -163,7 +174,7 @@ export default function BookingDetailsScreen() {
               </View>
             )}
             <View style={styles.buttonRow}>
-              {salon?.address ? <Button title="Veibeskrivelse" variant="outline" size="md" icon="navigate-outline" onPress={() => openDirections(salon)} style={styles.flex} /> : null}
+              {address ? <Button title="Veibeskrivelse" variant="outline" size="md" icon="navigate-outline" onPress={() => openDirections(address)} style={styles.flex} /> : null}
               {salon?.phone && <Button title="Ring" variant="outline" size="md" icon="call-outline" onPress={() => callSalon(salon)} style={styles.flex} />}
             </View>
           </View>
@@ -194,6 +205,15 @@ export default function BookingDetailsScreen() {
               </View>
             )}
             <Button title="Book ny time" variant="secondary" onPress={bookAgain} />
+          </View>
+        )}
+
+        {booking.status === 'declined' && (
+          <View style={styles.notice}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+            <Text variant="caption" color={colors.text} style={styles.flex}>
+              {booking.salonName} kunne dessverre ikke ta imot denne bookingen.
+            </Text>
           </View>
         )}
 
@@ -247,4 +267,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.warningSoft,
   },
   thanks: { backgroundColor: colors.successSoft },
+  waiting: { backgroundColor: colors.primarySoft },
 });

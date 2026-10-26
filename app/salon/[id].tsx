@@ -319,7 +319,7 @@ function SalonIntro({ salon, onRatingPress }: { salon: Salon; onRatingPress?: ()
       <View style={styles.actions}>
         {salon.phone && <QuickAction icon="call-outline" label="Ring" onPress={() => callSalon(salon)} />}
         {salon.address ? (
-          <QuickAction icon="navigate-outline" label="Veibeskrivelse" onPress={() => openDirections(salon)} />
+          <QuickAction icon="navigate-outline" label="Veibeskrivelse" onPress={() => openDirections(salon.address)} />
         ) : null}
         <QuickAction icon="share-outline" label="Del" onPress={() => shareSalon(salon)} />
       </View>
@@ -439,7 +439,7 @@ function AboutSalon({ salon }: { salon: Salon }) {
         {salon.address ? (
           <>
             <Text variant="body" color={colors.textSecondary}>{salon.address}</Text>
-            <Button title="Vis i kart" variant="outline" size="md" icon="map-outline" onPress={() => openDirections(salon)} />
+            <Button title="Vis i kart" variant="outline" size="md" icon="map-outline" onPress={() => openDirections(salon.address)} />
           </>
         ) : (
           <Text variant="body" color={colors.textSecondary}>

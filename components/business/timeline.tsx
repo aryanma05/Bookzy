@@ -72,7 +72,7 @@ function placeBookings(bookings: Booking[]): Placed[] {
 
 function blockColors(booking: Booking, now: Date) {
   if (booking.status === 'cancelled') return { background: colors.dangerSoft, bar: colors.danger, text: colors.textMuted };
-  if (booking.status === 'noShow') return { background: colors.warningSoft, bar: colors.warning, text: colors.text };
+  if (booking.status === 'noShow' || booking.status === 'pending') return { background: colors.warningSoft, bar: colors.warning, text: colors.text };
   if (booking.endAt.getTime() <= now.getTime()) return { background: colors.divider, bar: colors.textMuted, text: colors.textSecondary };
   return { background: colors.primarySoft, bar: colors.primary, text: colors.ink };
 }
@@ -161,8 +161,10 @@ export function Timeline({ columns, now, onPressBooking, showStaff = false }: Ti
                   const blockHeight = Math.max(booking.durationMin * PER_MINUTE - 2, 24);
                   const palette = blockColors(booking, now);
                   const cancelled = booking.status === 'cancelled';
+                  const pending = booking.status === 'pending';
                   const isNew =
                     !cancelled &&
+                    !pending &&
                     booking.createdAt !== null &&
                     now.getTime() - booking.createdAt.getTime() < DAY_MS &&
                     booking.startAt.getTime() > now.getTime();
@@ -181,7 +183,7 @@ export function Timeline({ columns, now, onPressBooking, showStaff = false }: Ti
                         pressed && styles.blockPressed,
                       ]}
                       accessibilityRole="button"
-                      accessibilityLabel={`${booking.time} ${booking.customerName}, ${booking.serviceName}${cancelled ? ', avbestilt' : ''}`}
+                      accessibilityLabel={`${booking.time} ${booking.customerName}, ${booking.serviceName}${cancelled ? ', avbestilt' : pending ? ', venter på svar' : ''}`}
                     >
                       <View style={[styles.blockInner, { backgroundColor: palette.background, borderLeftColor: palette.bar }]}>
                         <Text numberOfLines={1} style={[styles.blockTime, { color: palette.text }]}>
@@ -189,6 +191,7 @@ export function Timeline({ columns, now, onPressBooking, showStaff = false }: Ti
                             ? `${booking.time} ${booking.customerName}`
                             : formatTimeRange(booking.time, booking.durationMin)}
                           {cancelled ? <Text style={styles.cancelledTag}>  AVBESTILT</Text> : null}
+                          {pending ? <Text style={styles.pendingTag}>  VENTER</Text> : null}
                           {isNew ? <Text style={styles.newTag}>  NY</Text> : null}
                         </Text>
                         {blockHeight >= 38 && (
@@ -273,6 +276,7 @@ const styles = StyleSheet.create({
   blockService: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16 },
   newTag: { fontFamily: fonts.extrabold, fontSize: 10, color: colors.primary },
   cancelledTag: { fontFamily: fonts.extrabold, fontSize: 10, color: colors.danger },
+  pendingTag: { fontFamily: fonts.extrabold, fontSize: 10, color: colors.warning },
   struck: { textDecorationLine: 'line-through' },
   nowLine: { position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: colors.danger },
   nowDot: {

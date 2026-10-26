@@ -19,7 +19,8 @@ import { slotId, slotTimesFor, toStartDate } from '@/lib/schedule';
 import type { Salon, Service } from '@/lib/salons';
 import { useAuth } from './AuthContext';
 
-export type BookingStatus = 'confirmed' | 'cancelled' | 'noShow';
+/** `pending` venter på at salongen godkjenner, `declined` ble avslått av salongen. */
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'declined' | 'noShow';
 
 export type Booking = {
   id: string;
@@ -44,6 +45,8 @@ export type Booking = {
   status: BookingStatus;
   /** Satt når salongen avbestilte. Kunden avbestiller uten å sette feltet. */
   cancelledBy: 'salon' | null;
+  /** Adressen salongen ga da den godkjente timen. Tom hos salonger som ikke godkjenner selv. */
+  address: string;
   createdAt: Date | null;
 };
 
@@ -99,12 +102,19 @@ export function toBooking(id: string, data: DocumentData): Booking {
     slotIds: data.slotIds ?? [],
     status: data.status,
     cancelledBy: data.cancelledBy === 'salon' ? 'salon' : null,
+    address: typeof data.address === 'string' ? data.address : '',
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : null,
   };
 }
 
 export function canCancel(booking: Booking, now: Date) {
-  return booking.status === 'confirmed' && now.getTime() < booking.cancellableUntil.getTime();
+  // En forespørsel kan trekkes når som helst
+  return booking.status === 'pending' || (booking.status === 'confirmed' && now.getTime() < booking.cancellableUntil.getTime());
+}
+
+/** Timer som holder av tiden i kalenderen. */
+export function isUpcoming(booking: Booking, now: Date) {
+  return (booking.status === 'confirmed' || booking.status === 'pending') && booking.endAt.getTime() > now.getTime();
 }
 
 // Knyttes til uid slik at bookinger fra en tidligere innlogget bruker aldri vises for en ny.
@@ -186,7 +196,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         endAt: Timestamp.fromDate(endAt),
         cancellableUntil: Timestamp.fromDate(cancellableUntil),
         slotIds: chosen.refs.map((ref) => ref.id),
-        status: 'confirmed',
+        status: salon.requiresApproval ? 'pending' : 'confirmed',
         createdAt: serverTimestamp(),
         // Så varslene kan si «flyttet» i stedet for én avbestilling og én ny booking
         ...(replaces ? { replacesBookingId: replaces.id } : {}),

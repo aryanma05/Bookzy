@@ -61,7 +61,8 @@ export default function ConfirmBookingScreen() {
   // Satt når koden er sendt til en kunde som ikke er logget inn
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [note, setNote] = useState('');
-  const [errors, setErrors] = useState<{ name?: string; phone?: string; code?: string }>({});
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [errors, setErrors] = useState<{ name?: string; phone?: string; code?: string; terms?: string }>({});
   const [submitting, setSubmitting] = useState(false);
   // Logget inn med SMS: nummeret er bekreftet og kan ikke endres her
   const verifiedPhone = user?.phoneNumber ?? null;
@@ -94,9 +95,10 @@ export default function ConfirmBookingScreen() {
       name: askName && !name.trim() ? 'Skriv inn navnet ditt.' : undefined,
       phone: number ? undefined : 'Skriv inn et gyldig mobilnummer.',
       code: confirmation && !/^\d{6}$/.test(code.trim()) ? 'Skriv inn den sekssifrede koden fra SMS-en.' : undefined,
+      terms: salon.terms && !acceptedTerms ? 'Du må godta vilkårene for å booke.' : undefined,
     };
     setErrors(nextErrors);
-    if (!number || nextErrors.name || nextErrors.code) return;
+    if (!number || nextErrors.name || nextErrors.code || nextErrors.terms) return;
     setSubmitting(true);
     try {
       if (!user) {
@@ -121,7 +123,10 @@ export default function ConfirmBookingScreen() {
         saveProfile({ name, phone: number }).catch(() => {});
       }
       haptics.success();
-      router.replace({ pathname: '/book/success', params: { bookingId, moved: replacing ? '1' : '' } });
+      router.replace({
+        pathname: '/book/success',
+        params: { bookingId, moved: replacing ? '1' : '', pending: salon.requiresApproval ? '1' : '' },
+      });
     } catch (error) {
       haptics.warning();
       if ((error as { code?: string } | null)?.code?.startsWith('auth/')) {
@@ -251,6 +256,35 @@ export default function ConfirmBookingScreen() {
             />
           </View>
 
+          {salon.terms ? (
+            <View style={styles.card}>
+              <Text variant="subheading">Vilkår fra {salon.name}</Text>
+              <Text variant="body" color={colors.textSecondary}>{salon.terms}</Text>
+              <Pressable
+                onPress={() => {
+                  setAcceptedTerms(!acceptedTerms);
+                  setErrors({});
+                }}
+                style={styles.checkRow}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: acceptedTerms }}
+              >
+                <Ionicons name={acceptedTerms ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+                <Text variant="bodyStrong" style={styles.noticeText}>Jeg har lest og godtar vilkårene</Text>
+              </Pressable>
+              {errors.terms && <Text variant="caption" color={colors.danger}>{errors.terms}</Text>}
+            </View>
+          ) : null}
+
+          {salon.requiresApproval && (
+            <View style={styles.notice}>
+              <Ionicons name="shield-checkmark-outline" size={18} color={colors.primaryDark} />
+              <Text variant="caption" color={colors.primaryDark} style={styles.noticeText}>
+                {salon.name} godkjenner bookingene selv. Du ser svaret under Timer, og adressen vises når timen er godkjent.
+              </Text>
+            </View>
+          )}
+
           {pastDeadline ? (
             <View style={[styles.notice, styles.warning]}>
               <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
@@ -288,7 +322,15 @@ export default function ConfirmBookingScreen() {
           <Text variant="heading">{formatPrice(service.priceNok)}</Text>
         </View>
         <Button
-          title={!user && !confirmation ? 'Send kode' : replacing ? 'Bekreft ny tid' : 'Bekreft booking'}
+          title={
+            !user && !confirmation
+              ? 'Send kode'
+              : salon.requiresApproval
+                ? 'Send forespørsel'
+                : replacing
+                  ? 'Bekreft ny tid'
+                  : 'Bekreft booking'
+          }
           onPress={confirm}
           loading={submitting}
           style={styles.footerButton}
@@ -316,6 +358,7 @@ const styles = StyleSheet.create({
   warning: { backgroundColor: colors.warningSoft },
   card: { padding: 16, gap: 16, borderRadius: radius.lg, backgroundColor: colors.surface, ...shadows.card },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 4 },
   detailText: { flex: 1 },
   fields: { gap: 16, marginTop: 4 },
   codeField: { gap: 10 },

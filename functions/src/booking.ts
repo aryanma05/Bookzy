@@ -50,7 +50,8 @@ export async function loadBooking(id: string, data: DocumentData, salonData?: Do
       note: cleanMultiline(data.note, 500),
       salonName: clean(salon.name, 80) || 'Salongen',
       salonPhone: clean(salon.phone, 20),
-      salonPlace: clean(salon.address, 120) || clean(salon.area, 60),
+      // Adressen på timen skrives av salongen når den godkjenner, og er skjult på salongen
+      salonPlace: clean(data.address, 120) || clean(salon.address, 120) || clean(salon.area, 60),
       serviceName: clean(service?.name, 80) || 'Timen',
       staffName: clean(staff?.name, 60),
       priceNok: typeof data.priceNok === 'number' && data.priceNok >= 0 ? data.priceNok : 0,
