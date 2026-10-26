@@ -1,11 +1,11 @@
 import { Linking, Platform, Share } from 'react-native';
-import type { Salon } from './salons';
+import { displayAddress, type Salon } from './salons';
 import { showAlert } from './alert';
 import { toE164 } from './phone';
 
 // Bare adressen: med navnet foran viser kartet navnet på hjemmesalongen, eller finner et annet sted med samme navn
-export function openDirections(salon: Salon) {
-  const query = encodeURIComponent(salon.address);
+export function openDirections(address: string) {
+  const query = encodeURIComponent(address);
   const url =
     Platform.OS === 'ios'
       ? `https://maps.apple.com/?q=${query}`
@@ -59,8 +59,8 @@ export async function shareBookingLink(link: string) {
 export async function shareSalon(salon: Salon) {
   const link = salonLink(salon.id);
   const message = link
-    ? `${salon.name} – ${salon.address}. Book time her: ${link}`
-    : `${salon.name} – ${salon.address}. Book time i Bookzy-appen.`;
+    ? `${salon.name} – ${displayAddress(salon)}. Book time her: ${link}`
+    : `${salon.name} – ${displayAddress(salon)}. Book time i Bookzy-appen.`;
   try {
     if (Platform.OS === 'web') {
       if (typeof navigator !== 'undefined' && navigator.share) {

@@ -653,6 +653,82 @@ describe('salongen avbestiller', () => {
   });
 });
 
+describe('godkjenning og vilkår', () => {
+  const ADDRESS = 'Hjemmegata 1, Oslo';
+  const requireApproval = () =>
+    asAdmin((firestore) => updateDoc(doc(firestore, 'salons', SALON_ID), { requiresApproval: true, address: '' }));
+  const pending = { overrides: { status: 'pending' } };
+
+  test('kunden kan bare sende en forespørsel når salongen godkjenner selv', async () => {
+    await requireApproval();
+    await assertFails(book(db('alice'), 'alice').commit());
+    await assertSucceeds(book(db('alice'), 'alice', pending).commit());
+  });
+
+  test('vanlige salonger får ikke forespørsler', async () => {
+    await assertFails(book(db('alice'), 'alice', pending).commit());
+  });
+
+  test('eieren kan godkjenne, og kunden får adressen', async () => {
+    await requireApproval();
+    await book(db('alice'), 'alice', pending).commit();
+    await assertSucceeds(updateDoc(doc(db(OWNER), 'bookings', 'booking-alice'), { status: 'confirmed', address: ADDRESS }));
+    const booking = await getDoc(doc(db('alice'), 'bookings', 'booking-alice'));
+    assert.equal(booking.get('address'), ADDRESS);
+  });
+
+  test('eieren kan avslå, og tiden blir ledig', async () => {
+    await requireApproval();
+    await book(db('alice'), 'alice', pending).commit();
+    const firestore = db(OWNER);
+    const batch = writeBatch(firestore);
+    batch.update(doc(firestore, 'bookings', 'booking-alice'), { status: 'declined' });
+    for (const time of ['10:00', '10:30']) batch.delete(doc(firestore, 'slots', slotIdFor('maria', time)));
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(book(db('bob'), 'bob', pending).commit());
+  });
+
+  test('kunden kan trekke forespørselen, men ikke godkjenne den selv', async () => {
+    await requireApproval();
+    await book(db('alice'), 'alice', pending).commit();
+    await assertFails(updateDoc(doc(db('alice'), 'bookings', 'booking-alice'), { status: 'confirmed', address: ADDRESS }));
+    const firestore = db('alice');
+    await assertSucceeds(cancel(writeBatch(firestore), firestore, 'booking-alice').commit());
+  });
+
+  test('andre kan ikke godkjenne', async () => {
+    await requireApproval();
+    await book(db('alice'), 'alice', pending).commit();
+    await assertFails(updateDoc(doc(db('bob'), 'bookings', 'booking-alice'), { status: 'confirmed', address: '' }));
+  });
+
+  test('adressen kan ikke stå på salongen når den godkjenner selv', async () => {
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ requiresApproval: true })));
+    await assertSucceeds(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ requiresApproval: true, address: '' })));
+  });
+
+  test('bare eieren ser den skjulte adressen', async () => {
+    const ref = (uid) => doc(db(uid), 'salons', SALON_ID, 'private', 'address');
+    await assertSucceeds(setDoc(ref(OWNER), { address: ADDRESS }));
+    await assertSucceeds(getDoc(ref(OWNER)));
+    await assertFails(getDoc(ref('alice')));
+    await assertFails(getDoc(ref(null)));
+    await assertFails(setDoc(ref('alice'), { address: 'Falsk' }));
+    await assertFails(setDoc(doc(db(OWNER), 'salons', SALON_ID, 'private', 'annet'), { address: ADDRESS }));
+  });
+
+  test('eieren ser forespørslene sine', async () => {
+    await assertSucceeds(
+      getDocs(query(collection(db(OWNER), 'bookings'), where('salonId', '==', SALON_ID), where('status', '==', 'pending')))
+    );
+  });
+
+  test('vilkårene kan være opptil 2000 tegn', async () => {
+    await assertSucceeds(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ terms: 'a'.repeat(2000) })));
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ terms: 'a'.repeat(2001) })));
+  });
+});
+
 describe('møtte ikke', () => {
   const setStatus = (uid, bookingId, status) => updateDoc(doc(db(uid), 'bookings', bookingId), { status });
 

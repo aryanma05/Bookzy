@@ -27,7 +27,12 @@ function statusFor(booking: Booking, now: Date) {
       background: colors.dangerSoft,
     };
   }
+  if (booking.status === 'declined') return { label: 'Avslått av deg', color: colors.danger, background: colors.dangerSoft };
   if (booking.status === 'noShow') return { label: 'Møtte ikke', color: colors.warning, background: colors.warningSoft };
+  if (booking.status === 'pending' && booking.endAt.getTime() <= now.getTime()) {
+    return { label: 'Ikke besvart', color: colors.textSecondary, background: colors.divider };
+  }
+  if (booking.status === 'pending') return { label: 'Venter på svar', color: colors.warning, background: colors.warningSoft };
   if (booking.endAt.getTime() <= now.getTime()) return { label: 'Fullført', color: colors.textSecondary, background: colors.divider };
   if (booking.startAt.getTime() <= now.getTime()) return { label: 'Pågår', color: colors.primaryDark, background: colors.primarySoft };
   return { label: 'Bekreftet', color: colors.success, background: colors.successSoft };
@@ -56,7 +61,7 @@ function historyText(history: Booking[], currentId: string) {
 export default function SalonBookingScreen() {
   const now = useNow();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { salon, cancelAsSalon, setNoShow } = useBusiness();
+  const { salon, cancelAsSalon, approveBooking, declineBooking, setNoShow } = useBusiness();
   const { booking, loading } = useSalonBooking(id);
   const history = useCustomerHistory(salon?.id ?? null, booking?.userId || null);
   const [busy, setBusy] = useState(false);
@@ -116,6 +121,30 @@ export default function SalonBookingScreen() {
       ]
     );
 
+  const confirmApprove = () =>
+    showAlert(
+      `Godkjenne timen til ${firstName}?`,
+      salon.address ? `${firstName} får se adressen din (${salon.address}).` : `${firstName} ser at timen er bekreftet.`,
+      [
+        { text: 'Avbryt', style: 'cancel' },
+        { text: 'Godkjenn', onPress: () => run(() => approveBooking(booking), 'Kunne ikke godkjenne timen.') },
+      ]
+    );
+
+  const confirmDecline = () =>
+    showAlert(
+      `Avslå timen til ${firstName}?`,
+      `Tiden blir ledig for andre, og ${firstName} ser i appen at du ikke kunne ta imot bookingen. Adressen din blir ikke vist.`,
+      [
+        { text: 'Avbryt', style: 'cancel' },
+        {
+          text: 'Avslå',
+          style: 'destructive',
+          onPress: () => run(() => declineBooking(booking), 'Kunne ikke avslå timen.'),
+        },
+      ]
+    );
+
   const call = () => openPhoneLink(`tel:${phone}`).catch(() => showAlert('Kunne ikke ringe', `Nummeret er ${booking.customerPhone}.`));
   const message = () => openPhoneLink(`sms:${phone}`).catch(() => showAlert('Kunne ikke åpne meldinger', `Nummeret er ${booking.customerPhone}.`));
 
@@ -162,6 +191,18 @@ export default function SalonBookingScreen() {
             </View>
           ) : null}
         </View>
+
+        {booking.status === 'pending' && !started && (
+          <View style={styles.actions}>
+            <View style={styles.buttonRow}>
+              <Button title="Avslå" variant="danger" disabled={busy} onPress={confirmDecline} style={styles.flex} />
+              <Button title="Godkjenn" icon="checkmark" loading={busy} onPress={confirmApprove} style={styles.flex} />
+            </View>
+            <Text variant="caption" align="center" color={colors.textMuted}>
+              {firstName} ser ikke adressen din før du har godkjent timen.
+            </Text>
+          </View>
+        )}
 
         {booking.status === 'confirmed' && !started && (
           <View style={styles.actions}>

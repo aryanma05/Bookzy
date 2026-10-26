@@ -13,7 +13,7 @@ import { Stars } from '@/components/ui/stars';
 import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { useBookings } from '@/context/BookingContext';
+import { isUpcoming, useBookings } from '@/context/BookingContext';
 import { useNow } from '@/hooks/use-now';
 import { useReviewedBookings } from '@/hooks/use-reviewed-bookings';
 
@@ -28,9 +28,7 @@ export default function BookingsScreen() {
   const { needsReview } = useReviewedBookings(bookings, now);
   const [tab, setTab] = useState<Tab>('upcoming');
 
-  const upcoming = bookings.filter(
-    (booking) => booking.status === 'confirmed' && booking.endAt.getTime() > now.getTime()
-  );
+  const upcoming = bookings.filter((booking) => isUpcoming(booking, now));
   const past = bookings.filter((booking) => !upcoming.includes(booking)).reverse();
   const toReview = past.find((booking) => needsReview(booking.id));
   const list = tab === 'upcoming' ? upcoming : past;

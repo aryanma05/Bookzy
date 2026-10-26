@@ -23,6 +23,8 @@ export function useSalonBookings(salonId: string | null, fromKey: string, toKey:
       (snapshot) => {
         const bookings = snapshot.docs
           .map((booking) => toBooking(booking.id, booking.data()))
+          // Avslåtte forespørsler ble aldri timer
+          .filter((booking) => booking.status !== 'declined')
           .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
         setState({ key, bookings, error: false });
       },
@@ -35,6 +37,27 @@ export function useSalonBookings(salonId: string | null, fromKey: string, toKey:
 
   const current = state?.key === key ? state : null;
   return { bookings: current?.bookings ?? null, error: current?.error ?? false };
+}
+
+/** Forespørsler salongen ikke har svart på ennå, live og sortert etter tid. */
+export function usePendingBookings(salonId: string | null) {
+  const [state, setState] = useState<{ salonId: string; bookings: Booking[] } | null>(null);
+
+  useEffect(() => {
+    if (!salonId) return;
+    return onSnapshot(
+      query(collection(db, 'bookings'), where('salonId', '==', salonId), where('status', '==', 'pending')),
+      (snapshot) => {
+        const bookings = snapshot.docs
+          .map((booking) => toBooking(booking.id, booking.data()))
+          .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+        setState({ salonId, bookings });
+      },
+      (error) => console.warn('Kunne ikke hente forespørsler:', error)
+    );
+  }, [salonId]);
+
+  return state?.salonId === salonId ? state.bookings : [];
 }
 
 /** Én time, live – så endringer fra kunden (f.eks. avbestilling) vises med en gang. */
@@ -78,7 +101,7 @@ export function useCustomerHistory(salonId: string | null, userId: string | null
   return state?.key === key ? state.bookings : null;
 }
 
-/** Kommende, bekreftede timer hos salongen – brukes før man fjerner en ansatt eller legger inn fri. */
+/** Kommende timer og forespørsler hos salongen – brukes før man fjerner en ansatt eller legger inn fri. */
 export async function fetchUpcomingBookings(salonId: string, fromKey: string, toKey = '9999-12-31'): Promise<Booking[]> {
   const snapshot = await getDocs(
     query(
@@ -90,5 +113,5 @@ export async function fetchUpcomingBookings(salonId: string, fromKey: string, to
   );
   return snapshot.docs
     .map((booking) => toBooking(booking.id, booking.data()))
-    .filter((booking) => booking.status === 'confirmed');
+    .filter((booking) => booking.status === 'confirmed' || booking.status === 'pending');
 }

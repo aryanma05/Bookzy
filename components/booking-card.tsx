@@ -4,11 +4,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { colors, fonts, radius, shadows } from '@/constants/theme';
-import type { Booking } from '@/context/BookingContext';
+import { isUpcoming, type Booking } from '@/context/BookingContext';
 import { formatDay, formatMonthShort, toMinutes, toTime } from '@/lib/schedule';
 
 export function bookingStatus(booking: Booking, now: Date) {
   if (booking.status === 'cancelled') return { label: 'Avbestilt', color: colors.danger, background: colors.dangerSoft };
+  if (booking.status === 'declined') return { label: 'Avslått', color: colors.danger, background: colors.dangerSoft };
+  if (booking.status === 'pending') {
+    return booking.endAt.getTime() <= now.getTime()
+      ? { label: 'Ikke besvart', color: colors.textSecondary, background: colors.divider }
+      : { label: 'Venter på svar', color: colors.warning, background: colors.warningSoft };
+  }
   if (booking.status === 'noShow') return { label: 'Møtte ikke', color: colors.warning, background: colors.warningSoft };
   if (booking.endAt.getTime() <= now.getTime()) return { label: 'Fullført', color: colors.textSecondary, background: colors.divider };
   return { label: 'Bekreftet', color: colors.success, background: colors.successSoft };
@@ -18,7 +24,7 @@ export function BookingCard({ booking, now }: { booking: Booking; now: Date }) {
   const router = useRouter();
   const status = bookingStatus(booking, now);
   const endTime = toTime(toMinutes(booking.time) + booking.durationMin);
-  const upcoming = status.label === 'Bekreftet';
+  const upcoming = isUpcoming(booking, now);
 
   return (
     <PressableScale

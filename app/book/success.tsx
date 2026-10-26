@@ -28,7 +28,7 @@ export default function BookingSuccessScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const now = useNow();
-  const { bookingId, moved } = useLocalSearchParams<{ bookingId: string; moved?: string }>();
+  const { bookingId, moved, pending } = useLocalSearchParams<{ bookingId: string; moved?: string; pending?: string }>();
   const { user, preferences, emailVerified } = useAuth();
   // Uten bekreftet e-post sendes bekreftelse og påminnelse på SMS til dem som logget inn med mobilnummer
   const bySms = !emailVerified && !!user?.phoneNumber;
@@ -55,17 +55,27 @@ export default function BookingSuccessScreen() {
     <View style={[styles.screen, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.center}>
         <Animated.View entering={ZoomIn.springify().damping(80)} style={styles.checkCircle}>
-          <Ionicons name="checkmark" size={52} color="#FFFFFF" />
+          <Ionicons name={pending ? 'paper-plane' : 'checkmark'} size={52} color="#FFFFFF" />
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.titles}>
-          <Text variant="display" align="center">{moved ? 'Timen er flyttet!' : 'Timen er booket!'}</Text>
-          <Text variant="body" color={colors.textSecondary} align="center">
-            Du finner den under Timer.
-            {emailVerified ? ' Bekreftelsen er sendt på e-post.' : bySms ? ' Bekreftelsen er sendt på SMS.' : ''}
-            {remindable ? reminderText(booking, now) : ''}
-            {user && !user.email ? ' Logg inn med mobilnummeret ditt for å finne den igjen senere.' : ''}
+          <Text variant="display" align="center">
+            {pending ? 'Forespørselen er sendt!' : moved ? 'Timen er flyttet!' : 'Timen er booket!'}
           </Text>
+          {pending ? (
+            <Text variant="body" color={colors.textSecondary} align="center">
+              Salongen må godkjenne timen før den er bekreftet. Du ser svaret under Timer, og der kommer også adressen når timen er
+              godkjent.
+              {user && !user.email ? ' Logg inn med mobilnummeret ditt for å finne den igjen senere.' : ''}
+            </Text>
+          ) : (
+            <Text variant="body" color={colors.textSecondary} align="center">
+              Du finner den under Timer.
+              {emailVerified ? ' Bekreftelsen er sendt på e-post.' : bySms ? ' Bekreftelsen er sendt på SMS.' : ''}
+              {remindable ? reminderText(booking, now) : ''}
+              {user && !user.email ? ' Logg inn med mobilnummeret ditt for å finne den igjen senere.' : ''}
+            </Text>
+          )}
         </Animated.View>
 
         {/* Vises når timen er hentet. Feiler det, står fortsatt «Timen er booket» og knappene, ikke et hjul som aldri stopper. */}

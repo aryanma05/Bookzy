@@ -45,6 +45,8 @@ export type SalonChanges = Partial<
     | 'cancellationHours'
     | 'published'
     | 'photos'
+    | 'terms'
+    | 'requiresApproval'
   >
 >;
 
@@ -70,6 +72,8 @@ type BusinessContextType = {
   createBusiness: (input: NewBusiness) => Promise<string>;
   saveSalon: (changes: SalonChanges) => Promise<void>;
   cancelAsSalon: (booking: Booking) => Promise<void>;
+  approveBooking: (booking: Booking) => Promise<void>;
+  declineBooking: (booking: Booking) => Promise<void>;
   setNoShow: (booking: Booking, noShow: boolean) => Promise<void>;
 };
 
@@ -93,7 +97,8 @@ function editableData(salon: Salon, changes: SalonChanges) {
     name: next.name.trim(),
     category: next.category,
     description: next.description.trim(),
-    address: next.address.trim(),
+    // Med godkjenning ligger adressen bare i private/address (se saveSalon)
+    address: next.requiresApproval ? '' : next.address.trim(),
     area: next.area.trim(),
     phone: (next.phone ?? '').trim(),
     locationType: next.locationType,
@@ -115,11 +120,15 @@ function editableData(salon: Salon, changes: SalonChanges) {
     cancellationHours: next.cancellationHours,
     published: next.published,
     photos: next.photos,
+    ...('terms' in changes || salon.terms ? { terms: next.terms.trim() } : {}),
+    ...('requiresApproval' in changes || salon.requiresApproval ? { requiresApproval: next.requiresApproval } : {}),
     updatedAt: serverTimestamp(),
   };
 }
 
 type SalonSnapshot = { uid: string; salon: Salon | null };
+
+const privateAddressRef = (salonId: string) => doc(db, 'salons', salonId, 'private', 'address');
 
 export function BusinessProvider({ children }: { children: ReactNode }) {
   const { user, initializing } = useAuth();
@@ -161,7 +170,28 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   }, [uid]);
 
   const current = uid && snapshot?.uid === uid ? snapshot : null;
-  const salon = current?.salon ?? null;
+  const salonId = current?.salon?.id ?? null;
+  const [privateAddress, setPrivateAddress] = useState<{ salonId: string; address: string } | null>(null);
+
+  useEffect(() => {
+    if (!salonId) return;
+    return onSnapshot(
+      privateAddressRef(salonId),
+      (result) => setPrivateAddress({ salonId, address: result.get('address') ?? '' }),
+      (error) => {
+        console.error('Kunne ikke hente adressen:', error);
+        setPrivateAddress({ salonId, address: '' });
+      }
+    );
+  }, [salonId]);
+
+  const addressReady = !salonId || privateAddress?.salonId === salonId;
+  const publicSalon = current?.salon ?? null;
+  // Eieren ser alltid sin egen adresse, også når den er skjult for kundene
+  const salon =
+    publicSalon?.requiresApproval && privateAddress?.salonId === publicSalon.id
+      ? { ...publicSalon, address: privateAddress.address }
+      : publicSalon;
 
   const createBusiness = async (input: NewBusiness) => {
     if (!user) throw new Error('Du må være logget inn.');
@@ -194,19 +224,32 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
 
   const saveSalon = async (changes: SalonChanges) => {
     if (!salon) throw new Error('Fant ikke bedriften.');
-    await updateDoc(doc(db, 'salons', salon.id), editableData(salon, changes));
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'salons', salon.id), editableData(salon, changes));
+    const next = { ...salon, ...changes };
+    // Bare når adressen er med, så lagring fra andre skjermer aldri tømmer den
+    if (next.requiresApproval && 'address' in changes) {
+      batch.set(privateAddressRef(salon.id), { address: next.address.trim() });
+    }
+    await batch.commit();
   };
 
-  const cancelAsSalon = async (booking: Booking) => {
+  // Tiden blir ledig for andre kunder igjen
+  const releaseBooking = async (booking: Booking, changes: Record<string, unknown>) => {
     const batch = writeBatch(db);
-    batch.update(doc(db, 'bookings', booking.id), {
-      status: 'cancelled',
-      cancelledAt: serverTimestamp(),
-      cancelledBy: 'salon',
-    });
-    // Tiden blir ledig for andre kunder igjen
+    batch.update(doc(db, 'bookings', booking.id), changes);
     booking.slotIds.forEach((id) => batch.delete(doc(db, 'slots', id)));
     await batch.commit();
+  };
+
+  const cancelAsSalon = (booking: Booking) =>
+    releaseBooking(booking, { status: 'cancelled', cancelledAt: serverTimestamp(), cancelledBy: 'salon' });
+
+  const declineBooking = (booking: Booking) => releaseBooking(booking, { status: 'declined' });
+
+  const approveBooking = async (booking: Booking) => {
+    if (!salon) throw new Error('Fant ikke bedriften.');
+    await updateDoc(doc(db, 'bookings', booking.id), { status: 'confirmed', address: salon.address });
   };
 
   const setNoShow = (booking: Booking, noShow: boolean) =>
@@ -216,13 +259,15 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     <BusinessContext.Provider
       value={{
         salon,
-        loading: uid !== null && current === null,
+        loading: uid !== null && (current === null || !addressReady),
         businessMode: businessMode === true,
         modeReady: businessMode !== null,
         setBusinessMode,
         createBusiness,
         saveSalon,
         cancelAsSalon,
+        approveBooking,
+        declineBooking,
         setNoShow,
       }}
     >

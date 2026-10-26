@@ -36,7 +36,7 @@ service cloud.firestore {
       return [
         'name', 'category', 'description', 'address', 'area', 'phone', 'locationType',
         'services', 'staff', 'openingHours', 'flexibleHours', 'closedDates', 'cancellationHours', 'published', 'photos',
-        'updatedAt'
+        'terms', 'requiresApproval', 'updatedAt'
       ];
     }
 
@@ -71,6 +71,10 @@ service cloud.firestore {
         && data.cancellationHours is int && data.cancellationHours >= 0 && data.cancellationHours <= 168
         && data.published is bool
         && validPhotos(data.get('photos', []))
+        && data.get('terms', '') is string && data.get('terms', '').size() <= 2000
+        && data.get('requiresApproval', false) is bool
+        // Godkjenner salongen bookingene selv, ligger adressen i private/address og kommer først på den godkjente timen
+        && (data.get('requiresApproval', false) == false || data.address == '')
         && data.updatedAt == request.time;
     }
 
@@ -103,6 +107,17 @@ service cloud.firestore {
             == resource.data.ratingSum + getAfter(reviewPath(request.resource.data.lastReviewId)).data.rating);
 
       allow delete: if false;
+
+      // Bare eieren ser adressen her. Den kopieres til timen når eieren godkjenner den.
+      match /private/{docId} {
+        allow read: if isSalonOwner(salonId);
+        allow create, update: if isSalonOwner(salonId)
+          && docId == 'address'
+          && request.resource.data.keys().hasOnly(['address'])
+          && request.resource.data.address is string
+          && request.resource.data.address.size() <= 120;
+        allow delete: if false;
+      }
     }
 
     // Navn og telefon, og om brukeren vil ha påminnelser og e-post om bookinger (mangler = på).
@@ -144,7 +159,9 @@ service cloud.firestore {
           'slotIds', 'status', 'createdAt', 'replacesBookingId'
         ])
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'confirmed'
+        // Hos salonger som godkjenner bookinger selv, blir timen en forespørsel
+        && request.resource.data.status
+          == (get(salonPath(request.resource.data.salonId)).data.get('requiresApproval', false) ? 'pending' : 'confirmed')
         && request.resource.data.createdAt == request.time
         && request.resource.data.customerPhone is string
         && request.resource.data.customerPhone.size() <= 20
@@ -182,11 +199,11 @@ service cloud.firestore {
             && getAfter(bookingPath(request.resource.data.replacesBookingId)).data.status == 'cancelled'));
 
       allow update: if
-        // Kunden kan bare avbestille, og bare før salongens frist
+        // Kunden kan bare avbestille, og bare før salongens frist. En forespørsel kan trekkes når som helst.
         (signedIn()
           && resource.data.userId == request.auth.uid
-          && resource.data.status == 'confirmed'
-          && request.time < resource.data.cancellableUntil
+          && (resource.data.status == 'pending'
+            || (resource.data.status == 'confirmed' && request.time < resource.data.cancellableUntil))
           && request.resource.data.status == 'cancelled'
           && request.resource.data.cancelledAt == request.time
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']))
@@ -197,6 +214,15 @@ service cloud.firestore {
           && request.resource.data.cancelledAt == request.time
           && request.resource.data.cancelledBy == 'salon'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancelledBy']))
+        // ... svare på en forespørsel. Godkjent får kunden adressen, avslått frigjøres tiden.
+        || (isSalonOwner(resource.data.salonId)
+          && resource.data.status == 'pending'
+          && ((request.resource.data.status == 'confirmed'
+              && request.resource.data.address is string
+              && request.resource.data.address.size() <= 120
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'address']))
+            || (request.resource.data.status == 'declined'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))))
         // ... og markere at kunden ikke møtte (eller angre det) når timen har startet
         || (isSalonOwner(resource.data.salonId)
           && request.time >= resource.data.startAt
@@ -222,11 +248,11 @@ service cloud.firestore {
         && getAfter(bookingPath(request.resource.data.bookingId)).data.date == request.resource.data.date
         && slotId in getAfter(bookingPath(request.resource.data.bookingId)).data.slotIds;
 
-      // Luker frigjøres bare når kunden eller salongen avbestiller bookingen i samme operasjon.
+      // Luker frigjøres bare når kunden eller salongen avbestiller (eller avslår) bookingen i samme operasjon.
       allow delete: if signedIn()
         && (getAfter(bookingPath(resource.data.bookingId)).data.userId == request.auth.uid
           || isSalonOwner(resource.data.salonId))
-        && getAfter(bookingPath(resource.data.bookingId)).data.status == 'cancelled';
+        && getAfter(bookingPath(resource.data.bookingId)).data.status in ['cancelled', 'declined'];
 
       allow update: if false;
     }
