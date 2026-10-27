@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Poster, POSTER_THEMES, PosterThemePicker, sharePoster, usePosterFonts } from '@/components/business/poster';
+import { Poster, POSTER_THEMES, PosterThemePicker, usePosterFonts, usePosterShare } from '@/components/business/poster';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -47,18 +47,14 @@ export default function AvailabilityScreen() {
   const [anchorKey, setAnchorKey] = useState(() => toDateKey(new Date()));
   const [serviceId, setServiceId] = useState<string | null>(null);
   const [themeKey, setThemeKey] = useState(POSTER_THEMES[0].key);
-  const [sharing, setSharing] = useState(false);
-  // Bildet som er laget på nettet, men som nettleseren ville ha et nytt trykk for å dele
-  const [prepared, setPrepared] = useState<{ file: File; madeFor: unknown[] } | null>(null);
 
   const anchor = fromDateKey(anchorKey);
   const first = mode === 'month' ? new Date(anchor.getFullYear(), anchor.getMonth(), 1) : startOfWeek(anchor);
   const last = mode === 'month' ? new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0) : addDays(first, 6);
   const { bookings, error } = useSalonBookings(salon?.id ?? null, toDateKey(first), toDateKey(last));
 
-  // Et ferdig bilde gjelder bare så lenge oversikten ser lik ut
   const posterInputs = [mode, anchorKey, serviceId, themeKey, bookings, now];
-  const readyFile = prepared?.madeFor.every((value, index) => value === posterInputs[index]) ? prepared.file : null;
+  const { share, sharing, ready } = usePosterShare(posterRef, 'ledige-timer.png', 'Del ledige timer', posterInputs);
 
   if (!salon) return null;
 
@@ -99,18 +95,6 @@ export default function AvailabilityScreen() {
       !hoursForDate(salon.openingHours, day, salon.closedDates) ||
       (staffIds.length > 0 && staffIds.every((staffId) => isDayOff(salon.closedDates, key, staffId)));
     return closed ? 'Stengt' : 'Fullt';
-  };
-
-  const share = async () => {
-    // Ingen venting før delingsmenyen her, ellers nekter nettleseren igjen
-    if (readyFile) {
-      setPrepared(null);
-      await shareOnWeb(readyFile, false);
-      return;
-    }
-    setSharing(true);
-    await sharePoster(posterRef, 'ledige-timer.png', 'Del ledige timer');
-    setSharing(false);
   };
 
   const [monthName, year] = formatMonth(first).split(' ');
@@ -273,7 +257,7 @@ export default function AvailabilityScreen() {
             og ingen navn vises.
           </Text>
           <Button
-            title={readyFile ? 'Bildet er klart – del nå' : 'Del bilde'}
+            title={ready ? 'Bildet er klart – del nå' : 'Del bilde'}
             icon="share-outline"
             size="lg"
             loading={sharing}
