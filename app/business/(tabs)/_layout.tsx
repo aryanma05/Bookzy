@@ -79,6 +79,13 @@ export default function BusinessTabLayout() {
           tabBarIcon: (props: TabIconProps) => <TabIcon {...props} active="storefront" inactive="storefront-outline" />,
         }}
       />
+      <Tabs.Screen
+        name="bookzy"
+        options={{
+          title: 'Til Bookzy',
+          tabBarIcon: (props: TabIconProps) => <TabIcon {...props} active="home" inactive="home-outline" />,
+        }}
+      />
     </Tabs>
   );
 }

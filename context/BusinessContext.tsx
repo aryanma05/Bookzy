@@ -185,8 +185,9 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     );
   }, [salonId]);
 
-  const addressReady = !salonId || privateAddress?.salonId === salonId;
   const publicSalon = current?.salon ?? null;
+  // Adressen brukes bare med godkjenning. Å vente på den ellers ville vist lastehjulet og nullstilt navigasjonen rett etter registrering.
+  const addressReady = !publicSalon?.requiresApproval || privateAddress?.salonId === salonId;
   // Eieren ser alltid sin egen adresse, også når den er skjult for kundene
   const salon =
     publicSalon?.requiresApproval && privateAddress?.salonId === publicSalon.id

@@ -91,7 +91,7 @@ export default function SalonSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
-  const { salon, saveSalon, setBusinessMode } = useBusiness();
+  const { salon, saveSalon } = useBusiness();
   const [publishing, setPublishing] = useState(false);
 
   if (!salon) return null;
@@ -124,11 +124,6 @@ export default function SalonSettingsScreen() {
       { text: 'Avbryt', style: 'cancel' },
       { text: 'Skjul', style: 'destructive', onPress: () => setPublished(false) },
     ]);
-  };
-
-  const switchToCustomer = () => {
-    setBusinessMode(false);
-    router.replace('/explore');
   };
 
   const confirmSignOut = () =>
@@ -182,6 +177,7 @@ export default function SalonSettingsScreen() {
               onPress={go('/business/photos')}
             />
           </View>
+          <Button title="Veiled meg steg for steg" variant="secondary" icon="footsteps-outline" onPress={go('/business/setup')} />
           <Button
             title="Publiser siden"
             icon="globe-outline"
@@ -192,28 +188,50 @@ export default function SalonSettingsScreen() {
         </View>
       )}
 
-      {salon.published && link && (
+      {salon.published && (
         <SettingsSection
-          title="Bookinglenke"
-          footer={`Legg lenken i Instagram-bio eller send den på SMS, så booker kundene rett hos deg.\n${link.replace(/^https:\/\//, '')}`}
+          title="Siden din"
+          footer={
+            link
+              ? `Legg lenken i Instagram-bio eller send den på SMS, så booker kundene rett hos deg.\n${link.replace(/^https:\/\//, '')}`
+              : undefined
+          }
         >
           <ListRow
-            icon={Platform.OS === 'web' ? 'copy-outline' : 'share-outline'}
-            label={Platform.OS === 'web' ? 'Kopier lenke' : 'Del bookinglenke'}
-            onPress={() => shareBookingLink(link)}
-            last
+            icon="globe-outline"
+            label="Synlig for kunder"
+            last={!link}
+            right={<Switch value={salon.published} disabled={publishing} onValueChange={togglePublished} />}
           />
+          {link && (
+            <ListRow
+              icon={Platform.OS === 'web' ? 'copy-outline' : 'share-outline'}
+              label={Platform.OS === 'web' ? 'Kopier bookinglenke' : 'Del bookinglenke'}
+              onPress={() => shareBookingLink(link)}
+              last
+            />
+          )}
         </SettingsSection>
       )}
 
-      <SettingsSection title="Oppsett">
+      <SettingsSection title="Om salongen">
         <ListRow icon="storefront-outline" label="Profil og kontaktinfo" onPress={go('/business/profile')} />
         <ListRow
           icon="images-outline"
-          label="Forsidebilder"
+          label="Bilder"
           value={salon.photos.length === 0 ? 'Ingen ennå' : String(salon.photos.length)}
           onPress={go('/business/photos')}
         />
+        <ListRow
+          icon="people-outline"
+          label="Ansatte"
+          value={salon.staff.length === 1 ? 'Bare deg' : `${salon.staff.length} personer`}
+          onPress={go('/business/staff')}
+          last
+        />
+      </SettingsSection>
+
+      <SettingsSection title="Timer og booking">
         <ListRow
           icon="time-outline"
           label="Åpningstider"
@@ -233,35 +251,17 @@ export default function SalonSettingsScreen() {
           onPress={go('/business/days-off')}
         />
         <ListRow
-          icon="people-outline"
-          label="Ansatte"
-          value={salon.staff.length === 1 ? 'Bare deg' : `${salon.staff.length} personer`}
-          onPress={go('/business/staff')}
+          icon="shield-checkmark-outline"
+          label="Bookingregler"
+          value={salon.requiresApproval ? 'Du godkjenner' : salon.cancellationHours > 0 ? `Avbestill ${salon.cancellationHours} t før` : undefined}
+          onPress={go('/business/rules')}
           last
         />
       </SettingsSection>
 
-      {salon.published && (
-        <SettingsSection footer="Når siden er skjult, kan ingen finne deg eller booke nye timer.">
-          <ListRow
-            icon="globe-outline"
-            label="Synlig for kunder"
-            last
-            right={
-              <Switch
-                value={salon.published}
-                disabled={publishing}
-                onValueChange={togglePublished}
-              />
-            }
-          />
-        </SettingsSection>
-      )}
-
       <NotificationSettings />
 
       <SettingsSection title="Konto">
-        <ListRow icon="swap-horizontal-outline" label="Bytt til kundemodus" onPress={switchToCustomer} />
         <ListRow icon="log-out-outline" label="Logg ut" onPress={confirmSignOut} last />
       </SettingsSection>
     </ScrollView>

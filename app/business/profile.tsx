@@ -4,23 +4,13 @@ import { useRouter } from 'expo-router';
 import { FormScreen } from '@/components/business/form-screen';
 import { CategoryPicker, FieldGroup, LocationTypePicker } from '@/components/business/salon-fields';
 import { Button } from '@/components/ui/button';
-import { Chip } from '@/components/ui/chip';
-import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { colors, radius, shadows } from '@/constants/theme';
+import { colors, radius } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
-import { formatCancellationPolicy, type LocationType } from '@/lib/salons';
-
-const CANCELLATION_OPTIONS = [
-  { hours: 0, label: 'Ingen frist' },
-  { hours: 2, label: '2 timer' },
-  { hours: 12, label: '12 timer' },
-  { hours: 24, label: '24 timer' },
-  { hours: 48, label: '48 timer' },
-];
+import type { LocationType } from '@/lib/salons';
 
 export default function BusinessProfileScreen() {
   const router = useRouter();
@@ -33,9 +23,6 @@ export default function BusinessProfileScreen() {
   const [address, setAddress] = useState(salon?.address ?? '');
   const [area, setArea] = useState(salon?.area ?? '');
   const [phone, setPhone] = useState(salon?.phone ?? '');
-  const [cancellationHours, setCancellationHours] = useState(salon?.cancellationHours ?? 24);
-  const [requiresApproval, setRequiresApproval] = useState(salon?.requiresApproval ?? false);
-  const [terms, setTerms] = useState(salon?.terms ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -59,7 +46,7 @@ export default function BusinessProfileScreen() {
     setError(null);
     setSaving(true);
     try {
-      await saveSalon({ name, category, locationType, description, address, area, phone, cancellationHours, requiresApproval, terms });
+      await saveSalon({ name, category, locationType, description, address, area, phone });
       haptics.success();
       if (router.canGoBack()) router.back();
       else router.replace('/business/salon');
@@ -94,7 +81,7 @@ export default function BusinessProfileScreen() {
         onChangeText={setAddress}
         maxLength={120}
         hint={
-          requiresApproval
+          salon.requiresApproval
             ? 'Vises bare for kunder du har godkjent. Andre ser bare området.'
             : isHome
               ? 'Står feltet tomt, viser vi bare området. Da må du gi kunden adressen selv.'
@@ -103,40 +90,6 @@ export default function BusinessProfileScreen() {
       />
       <TextField label="Område eller bydel" value={area} onChangeText={setArea} maxLength={60} />
       <TextField label="Telefon" icon="call-outline" value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={20} />
-
-      <Text variant="heading" style={styles.heading}>Avbestilling</Text>
-      <FieldGroup label="Hvor lenge før timen kan kundene avbestille selv?" hint={formatCancellationPolicy(cancellationHours)}>
-        <View style={styles.chips}>
-          {CANCELLATION_OPTIONS.map((option) => (
-            <Chip
-              key={option.hours}
-              label={option.label}
-              selected={option.hours === cancellationHours}
-              onPress={() => setCancellationHours(option.hours)}
-            />
-          ))}
-        </View>
-      </FieldGroup>
-
-      <Text variant="heading" style={styles.heading}>Godkjenning og vilkår</Text>
-      <View style={styles.card}>
-        <View style={styles.flex}>
-          <Text variant="bodyStrong">Godkjenn bookinger selv</Text>
-          <Text variant="caption">
-            Kundene sender en forespørsel, og du velger om du vil ta imot dem. Adressen ser de først når du har godkjent timen.
-          </Text>
-        </View>
-        <Switch value={requiresApproval} onValueChange={setRequiresApproval} accessibilityLabel="Godkjenn bookinger selv" />
-      </View>
-      <TextField
-        label="Vilkår (valgfritt)"
-        placeholder="F.eks. om forsinkelser, depositum eller hvem som kan bli med"
-        value={terms}
-        onChangeText={setTerms}
-        multiline
-        maxLength={2000}
-        hint="Kundene må godta vilkårene før de kan booke."
-      />
 
       {error && (
         <View style={styles.error}>
@@ -150,15 +103,5 @@ export default function BusinessProfileScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   heading: { marginTop: 8 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    ...shadows.card,
-  },
   error: { padding: 12, borderRadius: radius.md, backgroundColor: colors.dangerSoft },
 });
