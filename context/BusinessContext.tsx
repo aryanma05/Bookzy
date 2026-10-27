@@ -23,7 +23,7 @@ const MODE_KEY = 'timeflyt:businessMode';
 // Salongens ID er også lenken (bookzy.no/{id}), så den kan ikke hete det samme som en side i appen
 const RESERVED_IDS = new Set([
   'account', 'assets', 'book', 'booking', 'bookings', 'business', 'explore', 'favicon', 'favorites',
-  'help', 'icon', 'index', 'login', 'privacy', 'profile', 'review', 'salon', 'search',
+  'help', 'icon', 'index', 'kalender', 'login', 'privacy', 'profile', 'review', 'salon', 'search',
 ]);
 
 /** Feltene eieren kan endre. Må stemme med editableSalonFields() i firestore.rules. */

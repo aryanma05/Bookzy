@@ -255,8 +255,8 @@ export default function SalonSettingsScreen() {
           label="Bookingregler"
           value={salon.requiresApproval ? 'Du godkjenner' : salon.cancellationHours > 0 ? `Avbestill ${salon.cancellationHours} t før` : undefined}
           onPress={go('/business/rules')}
-          last
         />
+        <ListRow icon="phone-portrait-outline" label="Kalender på telefonen" onPress={go('/business/calendar-link')} last />
       </SettingsSection>
 
       <NotificationSettings />

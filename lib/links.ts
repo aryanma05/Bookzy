@@ -14,7 +14,7 @@ export function openDirections(address: string) {
 }
 
 /**
- * Åpner en tel:- eller sms:-lenke. react-native-web åpner lenker i en ny fane,
+ * Åpner en tel:-, sms:- eller webcal:-lenke. react-native-web åpner lenker i en ny fane,
  * og det stopper mobilnettlesere og Instagram-nettleseren, så på nettet byttes adressen i samme fane.
  */
 export async function openPhoneLink(url: string) {
@@ -40,6 +40,11 @@ const appUrl = (process.env.EXPO_PUBLIC_APP_URL || '').trim().replace(/\/+$/, ''
  */
 export function salonLink(salonId: string): string | null {
   return appUrl ? `${appUrl}/${encodeURIComponent(salonId)}` : null;
+}
+
+/** Kalenderlenken salongen abonnerer på i kalenderappen (calendarFeed i functions), eller null uten EXPO_PUBLIC_APP_URL. */
+export function calendarFeedLink(salonId: string, token: string): string | null {
+  return appUrl ? `${appUrl}/kalender/${encodeURIComponent(salonId)}/${token}.ics` : null;
 }
 
 /** For salongen selv: bare lenken, så den kan limes rett inn i Instagram-bio eller en SMS. */

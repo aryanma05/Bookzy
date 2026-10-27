@@ -14,7 +14,7 @@
     "deploy:firestore": "firebase deploy --only firestore",
     "deploy:storage": "firebase deploy --only storage",
     "deploy:functions": "firebase deploy --only functions",
-    "deploy:web": "expo export -p web --clear && firebase deploy --only functions:salonLinkPage,hosting",
+    "deploy:web": "expo export -p web --clear && firebase deploy --only functions:salonLinkPage,functions:calendarFeed,hosting",
     "test:rules": "node ./scripts/test-rules.js",
     "test:functions": "npm --prefix functions test",
     "test:app": "node --test lib/*.test.ts"
