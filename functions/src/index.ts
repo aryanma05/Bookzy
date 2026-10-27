@@ -8,7 +8,7 @@ import { onRequest } from 'firebase-functions/https';
 import { onSchedule } from 'firebase-functions/scheduler';
 import { region } from 'firebase-functions/v1';
 import { claim, isDocId, loadBooking, movedFrom, preferences, wasMoved, type LoadedBooking } from './booking';
-import { appLink, expoAccessToken, resendApiKey, sveveApiKey } from './config';
+import { appLink, elksApiPassword, expoAccessToken, resendApiKey } from './config';
 import { sendEmail, verifiedEmail } from './email';
 import { reminderTime } from './format';
 import { previewHtml, toPreview } from './link';
@@ -21,7 +21,7 @@ initializeApp();
 const REGION = 'europe-west1';
 setGlobalOptions({ region: REGION, maxInstances: 10 });
 
-const secrets = [resendApiKey, expoAccessToken, sveveApiKey];
+const secrets = [resendApiKey, expoAccessToken, elksApiPassword];
 
 /** Kjører alle oppgavene, også om en av dem feiler, og logger det som gikk galt. */
 async function settle(bookingId: string, tasks: Promise<unknown>[]) {
