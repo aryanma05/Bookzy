@@ -5,7 +5,7 @@ import { colors, radius, shadows } from '@/constants/theme';
 
 // Må være en adresse som faktisk tas imot. Henvendelser om innsyn og sletting skal besvares innen 30 dager.
 const CONTACT_EMAIL = 'kontakt@bookzy.no';
-const UPDATED = '19. oktober 2026';
+const UPDATED = '26. oktober 2026';
 
 const PRIVACY = [
   {
@@ -39,7 +39,7 @@ const PRIVACY = [
     title: 'Hvem som får opplysningene',
     text: [
       'Salongen du booker hos.',
-      'Leverandører som lagrer og sender for oss: Google Firebase (innlogging, database og servere, databasen og serverne står i EU), Google reCAPTCHA (robotsjekk ved SMS-kode), Resend (e-post), Sveve (SMS) og Expo (varsler i appen).',
+      'Leverandører som lagrer og sender for oss: Google Firebase (innlogging, database og servere, databasen og serverne står i EU), Google reCAPTCHA (robotsjekk ved SMS-kode), Resend (e-post), 46elks (SMS) og Expo (varsler i appen).',
       'Noen av leverandørene er amerikanske. Opplysninger som overføres til USA, er beskyttet av EU–US Data Privacy Framework eller EUs standardavtaler.',
     ],
   },

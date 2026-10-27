@@ -78,22 +78,22 @@ The web version is a set of static pages. Pages with an id in the address, such 
 Notifications are sent by Cloud Functions in `functions/`. They need the Blaze plan (pay as you go – the free quota covers a small business with plenty to spare).
 
 1. **Email:** create an account at [Resend](https://resend.com), verify `bookzy.no` (emails are sent from `varsler@bookzy.no`) and create an API key.
-2. **SMS:** create an account at [Sveve](https://sveve.no) and turn on API access. Under *API → API-nøkkel* you find the API password. Add your Sveve username to `functions/.env.timeflyt` as `SVEVE_USER=...`. Sveve is a Norwegian provider with self-service sign-up, pay per message and no contract, and messages are sent from *Bookzy*.
+2. **SMS:** create an account at [46elks](https://46elks.com). They verify new accounts by email (what you use it for and what kind of business you are) before you can send. The dashboard shows an API username and an API password. Add the API username (not your login email) to `functions/.env.timeflyt` as `ELKS_API_USER=...`. 46elks is a Swedish provider with pay per message and no contract, and messages are sent from *Bookzy*.
 3. **Push:** run `npx eas-cli init` to create an Expo project (this adds `extra.eas.projectId` to `app.json`). Set up push credentials with `npx eas-cli credentials` (an FCM V1 key for Android and an APNs key for iOS – see [Expo's guide](https://docs.expo.dev/push-notifications/push-notifications-setup/)). On [expo.dev](https://expo.dev), turn on *Enhanced security for push notifications* for the project and create an access token. Push needs a development build; it doesn't work in Expo Go on Android.
-4. **Secrets:** they are stored in Google Secret Manager, never in the code. `SVEVE_API_KEY` is the API password from Sveve:
+4. **Secrets:** they are stored in Google Secret Manager, never in the code. `ELKS_API_PASSWORD` is the API password from 46elks:
    ```bash
    firebase functions:secrets:set RESEND_API_KEY
    firebase functions:secrets:set EXPO_ACCESS_TOKEN
-   firebase functions:secrets:set SVEVE_API_KEY
+   firebase functions:secrets:set ELKS_API_PASSWORD
    ```
-5. **Deploy:** `npm --prefix functions install`, then `npm run deploy:firestore` and `npm run deploy:functions`. The sender (`EMAIL_FROM`), the Sveve username (`SVEVE_USER`) and the address used for links in emails and SMS (`APP_URL`) are in `functions/.env.timeflyt`. Until `SVEVE_USER` is set, SMS are skipped and the Functions log says so.
+5. **Deploy:** `npm --prefix functions install`, then `npm run deploy:firestore` and `npm run deploy:functions`. The sender (`EMAIL_FROM`), the 46elks API username (`ELKS_API_USER`) and the address used for links in emails and SMS (`APP_URL`) are in `functions/.env.timeflyt`. Until `ELKS_API_USER` is set, SMS are skipped and the Functions log says so.
 6. **Optional:** turn on a TTL policy on the `expireAt` field for the `sentNotifications` and `pushTickets` collections (Firestore → TTL) so old entries are deleted automatically.
 
 How it works:
 
 - When a booking is created or cancelled, a function sends push, email or SMS to the right person and plans the reminder in `reminders/{bookingId}`. A scheduled function sends due reminders every ten minutes.
 - Email is only sent to verified email addresses, so nobody can sign up with someone else's address and have us email them. New accounts get a verification link, and the profile shows a reminder until it's done.
-- SMS go to customers without a verified email who signed in with their mobile number. The number comes from their sign-in (verified with an SMS code), never from the booking. A customer who cancels in the app gets no SMS, and the salon is never sent SMS. Each SMS costs money, so keep an eye on the balance at Sveve.
+- SMS go to customers without a verified email who signed in with their mobile number. The number comes from their sign-in (verified with an SMS code), never from the booking. A customer who cancels in the app gets no SMS, and the salon is never sent SMS. Each SMS costs money, so keep an eye on the balance at 46elks.
 - Names of the salon, service and staff in notifications come from the salon document, not from the booking the customer wrote. Everything from users is escaped before it goes into an email.
 - A device belongs to the last person who signed in on it (`pushTokens/{token}`), and is removed when they sign out, so the next person never gets someone else's notifications.
 - Each notification is sent at most once, even if Firestore delivers the same event twice.
@@ -108,7 +108,7 @@ npm run emulators        # Auth, Firestore, Functions and Storage (UI at http://
 npm run seed:emulator    # sample salons, reviews and a test account with two appointments
 ```
 
-In the emulator, emails, SMS and push notifications are written to the Functions log instead of being sent, so test data never reaches real people. To keep the emulator from looking for the real secrets, create `functions/.secret.local` (git-ignored) with `RESEND_API_KEY=test`, `EXPO_ACCESS_TOKEN=test` and `SVEVE_API_KEY=test` on separate lines. Scheduled reminders don't run in the emulator. SMS codes aren't sent either; the Auth emulator prints them in its log and shows them in the Emulator UI.
+In the emulator, emails, SMS and push notifications are written to the Functions log instead of being sent, so test data never reaches real people. To keep the emulator from looking for the real secrets, create `functions/.secret.local` (git-ignored) with `RESEND_API_KEY=test`, `EXPO_ACCESS_TOKEN=test` and `ELKS_API_PASSWORD=test` on separate lines. Scheduled reminders don't run in the emulator. SMS codes aren't sent either; the Auth emulator prints them in its log and shows them in the Emulator UI.
 
 Then create `.env.local` with `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` and restart Expo. On a physical phone, also set `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST` to your computer's IP address (Android emulator: `10.0.2.2`). Delete `.env.local` to go back to the real database.
 
