@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Poster, POSTER_THEMES, PosterThemePicker, sharePoster, usePosterFonts } from '@/components/business/poster';
+import { Poster, POSTER_THEMES, PosterThemePicker, usePosterFonts, usePosterShare } from '@/components/business/poster';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -47,12 +47,14 @@ export default function AvailabilityScreen() {
   const [anchorKey, setAnchorKey] = useState(() => toDateKey(new Date()));
   const [serviceId, setServiceId] = useState<string | null>(null);
   const [themeKey, setThemeKey] = useState(POSTER_THEMES[0].key);
-  const [sharing, setSharing] = useState(false);
 
   const anchor = fromDateKey(anchorKey);
   const first = mode === 'month' ? new Date(anchor.getFullYear(), anchor.getMonth(), 1) : startOfWeek(anchor);
   const last = mode === 'month' ? new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0) : addDays(first, 6);
   const { bookings, error } = useSalonBookings(salon?.id ?? null, toDateKey(first), toDateKey(last));
+
+  const posterInputs = [mode, anchorKey, serviceId, themeKey, bookings, now];
+  const { share, sharing, ready } = usePosterShare(posterRef, 'ledige-timer.png', 'Del ledige timer', posterInputs);
 
   if (!salon) return null;
 
@@ -93,12 +95,6 @@ export default function AvailabilityScreen() {
       !hoursForDate(salon.openingHours, day, salon.closedDates) ||
       (staffIds.length > 0 && staffIds.every((staffId) => isDayOff(salon.closedDates, key, staffId)));
     return closed ? 'Stengt' : 'Fullt';
-  };
-
-  const share = async () => {
-    setSharing(true);
-    await sharePoster(posterRef, 'ledige-timer.png', 'Del ledige timer');
-    setSharing(false);
   };
 
   const [monthName, year] = formatMonth(first).split(' ');
@@ -261,7 +257,7 @@ export default function AvailabilityScreen() {
             og ingen navn vises.
           </Text>
           <Button
-            title="Del bilde"
+            title={ready ? 'Bildet er klart – del nå' : 'Del bilde'}
             icon="share-outline"
             size="lg"
             loading={sharing}

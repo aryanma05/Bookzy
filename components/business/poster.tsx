@@ -1,4 +1,4 @@
-import type { ReactNode, Ref, RefObject } from 'react';
+import { useState, type ReactNode, type Ref, type RefObject } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -106,35 +106,71 @@ export function usePosterFonts(): boolean {
 }
 
 /**
+ * Deler bildet på nettet med delingsmenyen der den finnes, ellers lastes det ned.
+ * Gir false når nettleseren vil ha et nytt trykk fordi bildet tok for lang tid å lage (vanlig på mobil).
+ */
+async function shareOnWeb(file: File, mayAskAgain: boolean) {
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file] });
+      return true;
+    }
+  } catch (error) {
+    const name = (error as Error).name;
+    if (name === 'AbortError') return true;
+    if (name === 'NotAllowedError' && mayAskAgain) return false;
+    // Nettleseren nektet å dele av en annen grunn, så vi laster det ned i stedet
+  }
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  link.download = file.name;
+  link.click();
+  return true;
+}
+
+/**
  * Lager et bilde av plakaten og deler det. På mobil deles det som fil med delingsmenyen.
  * På nettet brukes delingsmenyen der den finnes, ellers lastes bildet ned.
+ * `inputs` er alt plakaten lages av: et bilde som venter på et nytt trykk, lages på nytt hvis noe av det endres.
  */
-export async function sharePoster(ref: RefObject<View | null>, fileName: string, dialogTitle: string) {
-  try {
-    if (Platform.OS !== 'web') {
-      const uri = await captureRef(ref, { format: 'png', quality: 1, result: 'tmpfile' });
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle });
+export function usePosterShare(ref: RefObject<View | null>, fileName: string, dialogTitle: string, inputs: unknown[]) {
+  const [sharing, setSharing] = useState(false);
+  // Bildet som er laget på nettet, men som nettleseren ville ha et nytt trykk for å dele
+  const [prepared, setPrepared] = useState<{ file: File; madeFor: unknown[] } | null>(null);
+  const readyFile = prepared?.madeFor.every((value, index) => value === inputs[index]) ? prepared.file : null;
+
+  const share = async () => {
+    // Ingen venting før delingsmenyen her, ellers nekter nettleseren igjen
+    if (readyFile) {
+      setPrepared(null);
+      await shareOnWeb(readyFile, false);
       return;
     }
-    const uri = await captureRef(ref, { format: 'png', quality: 1, result: 'data-uri' });
-    const file = new File([await (await fetch(uri)).blob()], fileName, { type: 'image/png' });
+    setSharing(true);
     try {
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file] });
+      if (Platform.OS !== 'web') {
+        const uri = await captureRef(ref, { format: 'png', quality: 1, result: 'tmpfile' });
+        await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle });
         return;
       }
+      // html2canvas kopierer hele siden og venter uten tidsgrense på hvert bilde i kopien. Lazy-bilder
+      // (standard i expo-image) lastes aldri der i Safari, så da lastet knappen for evig.
+      document.querySelectorAll<HTMLImageElement>('img[loading="lazy"]').forEach((img) => (img.loading = 'eager'));
+      const uri = await Promise.race([
+        captureRef(ref, { format: 'png', quality: 1, result: 'data-uri' }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Brukte for lang tid på å lage bildet')), 20_000)),
+      ]);
+      const file = new File([await (await fetch(uri)).blob()], fileName, { type: 'image/png' });
+      if (!(await shareOnWeb(file, true))) setPrepared({ file, madeFor: inputs });
     } catch (error) {
-      if ((error as Error).name === 'AbortError') return;
-      // Nettleseren nektet å dele (f.eks. fordi det tok for lang tid å lage bildet), så vi laster det ned i stedet
+      console.error('Kunne ikke dele bildet:', error);
+      showAlert('Kunne ikke lage bildet', 'Prøv igjen om litt.');
+    } finally {
+      setSharing(false);
     }
-    const link = document.createElement('a');
-    link.href = uri;
-    link.download = file.name;
-    link.click();
-  } catch (error) {
-    console.error('Kunne ikke dele bildet:', error);
-    showAlert('Kunne ikke lage bildet', 'Prøv igjen om litt.');
-  }
+  };
+
+  return { share, sharing, ready: !!readyFile };
 }
 
 export function PosterThemePicker({ value, onChange }: { value: string; onChange: (key: string) => void }) {

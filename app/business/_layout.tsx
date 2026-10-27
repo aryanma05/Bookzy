@@ -33,6 +33,7 @@ export default function BusinessLayout() {
         <Stack.Screen name="days-off" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="rules" />
+        <Stack.Screen name="calendar-link" />
         <Stack.Screen name="photos" />
         <Stack.Screen name="availability" />
         <Stack.Screen name="price-list" />

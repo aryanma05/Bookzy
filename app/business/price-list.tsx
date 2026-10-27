@@ -7,8 +7,8 @@ import {
   posterContentHeight,
   POSTER_THEMES,
   PosterThemePicker,
-  sharePoster,
   usePosterFonts,
+  usePosterShare,
 } from '@/components/business/poster';
 import { FieldGroup } from '@/components/business/salon-fields';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,8 @@ export default function PriceListScreen() {
   const [themeKey, setThemeKey] = useState(POSTER_THEMES[0].key);
   const [hidden, setHidden] = useState<string[]>([]);
   const [note, setNote] = useState('');
-  const [sharing, setSharing] = useState(false);
+  const posterInputs = [themeKey, hidden, note, salon?.services];
+  const { share, sharing, ready } = usePosterShare(posterRef, 'prisliste.png', 'Del prisliste', posterInputs);
 
   // shortcut: teksten lagres bare på denne enheten, legg den på salongen hvis eierne bruker flere enheter
   const noteKey = `timeflyt:priceListNote:${salon?.id}`;
@@ -88,12 +89,6 @@ export default function PriceListScreen() {
   const changeNote = (text: string) => {
     setNote(text);
     AsyncStorage.setItem(noteKey, text).catch(() => {});
-  };
-
-  const share = async () => {
-    setSharing(true);
-    await sharePoster(posterRef, 'prisliste.png', 'Del prisliste');
-    setSharing(false);
   };
 
   return (
@@ -198,7 +193,7 @@ export default function PriceListScreen() {
               : 'Prisene hentes fra tjenestene dine. Med mange tjenester blir teksten mindre, så alt passer i en story.'}
           </Text>
           <Button
-            title="Del bilde"
+            title={ready ? 'Bildet er klart – del nå' : 'Del bilde'}
             icon="share-outline"
             size="lg"
             loading={sharing}

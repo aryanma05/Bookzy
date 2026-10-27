@@ -117,7 +117,7 @@ const SALON_FOOTER =
 
 // ---- Til kunden ----
 
-export function bookingReceipt(booking: BookingInfo, now: Date, link: string | null, moved?: BookingInfo): Email {
+function receipt(booking: BookingInfo, now: Date, link: string | null, subject: string, intro: string): Email {
   const deadline =
     booking.cancellableUntil && booking.cancellableUntil.getTime() > now.getTime()
       ? `Du kan flytte eller avbestille timen i appen frem til ${formatDateTime(booking.cancellableUntil)}.`
@@ -125,17 +125,74 @@ export function bookingReceipt(booking: BookingInfo, now: Date, link: string | n
   const call = booking.salonPhone ? ` Skulle noe skje, ring salongen på ${booking.salonPhone}.` : '';
 
   return {
-    subject: moved
-      ? `Timen er flyttet til ${when(booking)}`
-      : `Bekreftet: ${booking.serviceName} ${when(booking)}`,
+    subject,
     ...layout({
       greeting: booking.customerName ? `Hei ${firstName(booking.customerName)},` : undefined,
-      intro: moved
-        ? `Timen din hos ${booking.salonName} er flyttet fra ${when(moved)} til ny tid.`
-        : `Timen din hos ${booking.salonName} er bekreftet.`,
+      intro,
       rows: bookingRows(booking),
       paragraphs: [deadline + call],
       link: link ? { label: 'Se timen', url: link } : undefined,
+      footer: customerFooter(booking),
+    }),
+  };
+}
+
+export function bookingReceipt(booking: BookingInfo, now: Date, link: string | null, moved?: BookingInfo): Email {
+  if (moved) {
+    const intro = `Timen din hos ${booking.salonName} er flyttet fra ${when(moved)} til ny tid.`;
+    return receipt(booking, now, link, `Timen er flyttet til ${when(booking)}`, intro);
+  }
+  return receipt(booking, now, link, `Bekreftet: ${booking.serviceName} ${when(booking)}`, `Timen din hos ${booking.salonName} er bekreftet.`);
+}
+
+export function requestReceipt(booking: BookingInfo, link: string | null, moved?: BookingInfo): Email {
+  return {
+    subject: `Forespørsel sendt: ${booking.serviceName} ${when(booking)}`,
+    ...layout({
+      greeting: booking.customerName ? `Hei ${firstName(booking.customerName)},` : undefined,
+      intro: moved
+        ? `Du har flyttet timen din hos ${booking.salonName} fra ${when(moved)}. Den nye tiden må godkjennes av salongen.`
+        : `Forespørselen din er sendt til ${booking.salonName}. Salongen må godkjenne timen før den er bekreftet.`,
+      // Uten sted – adressen får kunden først når timen er godkjent
+      rows: bookingRows({ ...booking, salonPlace: '' }),
+      paragraphs: ['Du får beskjed når salongen har svart, og adressen kommer når timen er godkjent.'],
+      link: link ? { label: 'Se forespørselen', url: link } : undefined,
+      footer: customerFooter(booking),
+    }),
+  };
+}
+
+export function approvedPush(booking: BookingInfo, now: Date): Push {
+  const place = booking.salonPlace ? ` Adresse: ${booking.salonPlace}.` : '';
+  return {
+    title: 'Timen er godkjent',
+    body: `${booking.salonName} har godkjent ${booking.serviceName} ${relativeDate(booking.date, now)} kl ${booking.time}.${place}`,
+  };
+}
+
+export function approvedReceipt(booking: BookingInfo, now: Date, link: string | null): Email {
+  return receipt(booking, now, link, `Godkjent: ${booking.serviceName} ${when(booking)}`, `${booking.salonName} har godkjent timen din.`);
+}
+
+export function declinedPush(booking: BookingInfo, now: Date): Push {
+  return {
+    title: 'Timen ble ikke godkjent',
+    body: `${booking.salonName} kunne dessverre ikke ta imot bookingen din ${relativeDate(booking.date, now)} kl ${booking.time}.`,
+  };
+}
+
+export function declinedEmail(booking: BookingInfo, link: string | null): Email {
+  return {
+    subject: `Ikke godkjent: ${booking.serviceName} ${when(booking)}`,
+    ...layout({
+      greeting: booking.customerName ? `Hei ${firstName(booking.customerName)},` : undefined,
+      intro: `${booking.salonName} kunne dessverre ikke ta imot bookingen din ${when(booking)}.`,
+      rows: [
+        ['Behandling', booking.serviceName],
+        ['Hos', booking.staffName],
+      ],
+      paragraphs: ['Du kan booke en annen tid i appen.'],
+      link: link ? { label: 'Book ny tid', url: link } : undefined,
       footer: customerFooter(booking),
     }),
   };
@@ -226,6 +283,15 @@ export function cancelledBySalonSms(booking: BookingInfo, link: string | null): 
   );
 }
 
+export function approvedSms(booking: BookingInfo, link: string | null): string {
+  const place = booking.salonPlace ? `, ${booking.salonPlace}` : '';
+  return sms(`Godkjent: ${booking.serviceName} hos ${booking.salonName} ${when(booking)}${place}.`, link && `Se timen: ${link}`);
+}
+
+export function declinedSms(booking: BookingInfo, link: string | null): string {
+  return sms(`${booking.salonName} kunne dessverre ikke ta imot bookingen din ${when(booking)}.`, link && `Book ny tid: ${link}`);
+}
+
 export function reminderSms(booking: BookingInfo, now: Date, link: string | null): string {
   return sms(
     `Påminnelse: ${booking.serviceName} hos ${booking.salonName} ${relativeDate(booking.date, now)} kl ${booking.time}.`,
@@ -250,6 +316,17 @@ export function newBookingPush(booking: BookingInfo, now: Date, moved?: BookingI
   };
 }
 
+function customerRows(booking: BookingInfo, customer: string): Row[] {
+  return [
+    ['Tid', timeRange(booking)],
+    ['Behandling', booking.serviceName],
+    ['Hos', booking.staffName],
+    ['Kunde', customer],
+    ['Telefon', booking.customerPhone],
+    ['Beskjed', booking.note],
+  ];
+}
+
 export function newBookingEmail(booking: BookingInfo, link: string | null, moved?: BookingInfo): Email {
   const customer = booking.customerName || 'En kunde';
   return {
@@ -260,15 +337,35 @@ export function newBookingEmail(booking: BookingInfo, link: string | null, moved
       intro: moved
         ? `${customer} har flyttet timen sin fra ${when(moved)}. Den gamle tiden er ledig igjen.`
         : `${customer} har booket time hos deg.`,
-      rows: [
-        ['Tid', timeRange(booking)],
-        ['Behandling', booking.serviceName],
-        ['Hos', booking.staffName],
-        ['Kunde', customer],
-        ['Telefon', booking.customerPhone],
-        ['Beskjed', booking.note],
-      ],
+      rows: customerRows(booking, customer),
       link: link ? { label: 'Åpne i kalenderen', url: link } : undefined,
+      footer: SALON_FOOTER,
+    }),
+  };
+}
+
+export function newRequestPush(booking: BookingInfo, now: Date, moved?: BookingInfo): Push {
+  const customer = shortName(booking.customerName);
+  const time = `${relativeDate(booking.date, now)} kl ${booking.time}`;
+  return {
+    title: 'Ny forespørsel',
+    body: moved
+      ? `${customer} har flyttet ${booking.serviceName} fra ${formatDate(moved.date)} kl ${moved.time} til ${time} og venter på svar.`
+      : `${customer} vil booke ${booking.serviceName} ${time}.`,
+  };
+}
+
+export function newRequestEmail(booking: BookingInfo, link: string | null, moved?: BookingInfo): Email {
+  const customer = booking.customerName || 'En kunde';
+  return {
+    subject: `Ny forespørsel: ${customer}, ${when(booking)}`,
+    ...layout({
+      intro: moved
+        ? `${customer} har flyttet timen sin fra ${when(moved)} og venter på at du godkjenner den nye tiden. Den gamle tiden er ledig igjen.`
+        : `${customer} vil booke time hos deg og venter på at du godkjenner den.`,
+      rows: customerRows(booking, customer),
+      paragraphs: ['Kunden får adressen når du godkjenner. Avslår du, blir tiden ledig igjen.'],
+      link: link ? { label: 'Svar på forespørselen', url: link } : undefined,
       footer: SALON_FOOTER,
     }),
   };
