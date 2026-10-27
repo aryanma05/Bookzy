@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
 
 // Disse verdiene er ikke hemmelige – de ligger uansett i appen. Det er firestore.rules og storage.rules som styrer tilgangen.
@@ -19,6 +20,9 @@ export const db = getFirestore(app);
 
 export const storage = getStorage(app);
 
+// Samme region som i functions/src/index.ts
+export const functions = getFunctions(app, 'europe-west1');
+
 // Med EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true i .env.local går appen mot lokale emulatorer
 // (npm run emulators) i stedet for den ekte databasen.
 export const emulatorHost =
@@ -29,4 +33,5 @@ export const emulatorHost =
 if (emulatorHost) {
   connectFirestoreEmulator(db, emulatorHost, 8080);
   connectStorageEmulator(storage, emulatorHost, 9199);
+  connectFunctionsEmulator(functions, emulatorHost, 5001);
 }
