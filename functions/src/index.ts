@@ -1,7 +1,7 @@
 // Varsler til salong og kunde. Kjører på serveren, så de virker uansett om appen er åpen,
 // og også for dem som bruker Bookzy på nettet.
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, type DocumentData } from 'firebase-admin/firestore';
 import { logger, setGlobalOptions } from 'firebase-functions';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/firestore';
 import { onRequest } from 'firebase-functions/https';
@@ -52,13 +52,27 @@ async function notifyCustomer(booking: LoadedBooking, email: messages.Email, key
   if (phone) await sendSms(phone, sms, `${key}/customer`);
 }
 
+/** Påminnelsen sendes av sendReminders. Er timen for nær, blir det ingen. */
+async function saveReminder(booking: LoadedBooking, bookedAt: Date) {
+  const remindAt = reminderTime(booking.startAt, bookedAt);
+  if (!remindAt) return;
+  await getFirestore()
+    .collection('reminders')
+    .doc(booking.info.id)
+    .set({ remindAt: Timestamp.fromDate(remindAt), userId: booking.userId });
+}
+
 export const onBookingCreated = onDocumentCreated({ document: 'bookings/{bookingId}', secrets }, async (event) => {
   const snapshot = event.data;
   const data = snapshot?.data();
-  if (!snapshot || !data || data.status !== 'confirmed' || !isDocId(data.salonId)) return;
+  if (!snapshot || !data || !isDocId(data.salonId)) return;
+  // Hos salonger som godkjenner bookinger selv, er en ny booking en forespørsel
+  const request = data.status === 'pending';
+  if (!request && data.status !== 'confirmed') return;
 
   const bookingId = event.params.bookingId;
-  if (!(await claim(`created_${bookingId}`))) return;
+  const kind = request ? 'request' : 'created';
+  if (!(await claim(`${kind}_${bookingId}`))) return;
 
   const salon = (await getFirestore().collection('salons').doc(data.salonId).get()).data();
   const booking = await loadBooking(bookingId, data, salon);
@@ -67,18 +81,26 @@ export const onBookingCreated = onDocumentCreated({ document: 'bookings/{booking
   if (!booking || booking.startAt.getTime() <= now.getTime()) return;
   const moved = (await movedFrom(data, salon)) ?? undefined;
 
-  const remindAt = reminderTime(booking.startAt, snapshot.createTime.toDate());
-  const key = `created/${bookingId}`;
+  const key = `${kind}/${bookingId}`;
   const customerLink = appLink(`/booking/${bookingId}`);
   const salonLink = appLink(`/business/booking/${bookingId}`);
 
+  if (request) {
+    // Påminnelsen lages når salongen godkjenner
+    await settle(bookingId, [
+      notifyCustomer(booking, messages.requestReceipt(booking.info, customerLink, moved?.info), key),
+      notifySalon(
+        booking,
+        messages.newRequestPush(booking.info, now, moved?.info),
+        messages.newRequestEmail(booking.info, salonLink, moved?.info),
+        key
+      ),
+    ]);
+    return;
+  }
+
   await settle(bookingId, [
-    remindAt
-      ? getFirestore()
-          .collection('reminders')
-          .doc(bookingId)
-          .set({ remindAt: Timestamp.fromDate(remindAt), userId: booking.userId })
-      : Promise.resolve(),
+    saveReminder(booking, snapshot.createTime.toDate()),
     notifyCustomer(
       booking,
       messages.bookingReceipt(booking.info, now, customerLink, moved?.info),
@@ -94,12 +116,50 @@ export const onBookingCreated = onDocumentCreated({ document: 'bookings/{booking
   ]);
 });
 
+/** Salongen har godkjent eller avslått en forespørsel. */
+async function answered(bookingId: string, data: DocumentData) {
+  const approved = data.status === 'confirmed';
+  const kind = approved ? 'approved' : 'declined';
+  if (!(await claim(`${kind}_${bookingId}`))) return;
+
+  const booking = await loadBooking(bookingId, data);
+  const now = new Date();
+  // Gamle forespørsler som ryddes bort, er det ingen grunn til å si fra om
+  if (!booking || booking.startAt.getTime() <= now.getTime()) return;
+  const key = `${kind}/${bookingId}`;
+  const pushData = { bookingId, view: 'customer', channel: 'bookings' } as const;
+
+  if (approved) {
+    // Adressen er nå kopiert inn på bookingen, så den kommer med i varslene
+    const link = appLink(`/booking/${bookingId}`);
+    await settle(bookingId, [
+      saveReminder(booking, now),
+      sendPush(booking.userId, messages.approvedPush(booking.info, now), pushData),
+      notifyCustomer(booking, messages.approvedReceipt(booking.info, now, link), key, messages.approvedSms(booking.info, link)),
+    ]);
+    return;
+  }
+
+  const bookAgainLink = appLink(`/salon/${data.salonId}`);
+  await settle(bookingId, [
+    sendPush(booking.userId, messages.declinedPush(booking.info, now), pushData),
+    notifyCustomer(booking, messages.declinedEmail(booking.info, bookAgainLink), key, messages.declinedSms(booking.info, bookAgainLink)),
+  ]);
+}
+
 export const onBookingUpdated = onDocumentUpdated({ document: 'bookings/{bookingId}', secrets }, async (event) => {
   const before = event.data?.before.data();
   const after = event.data?.after.data();
-  if (!before || !after || before.status !== 'confirmed' || after.status !== 'cancelled') return;
+  if (!before || !after) return;
 
   const bookingId = event.params.bookingId;
+  if (before.status === 'pending' && (after.status === 'confirmed' || after.status === 'declined')) {
+    await answered(bookingId, after);
+    return;
+  }
+  // Kunden kan også trekke en forespørsel. Salongen får beskjed som ved en avbestilling.
+  if ((before.status !== 'confirmed' && before.status !== 'pending') || after.status !== 'cancelled') return;
+
   await getFirestore().collection('reminders').doc(bookingId).delete();
   if (!(await claim(`cancelled_${bookingId}`))) return;
 
