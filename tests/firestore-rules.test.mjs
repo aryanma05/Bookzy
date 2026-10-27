@@ -665,6 +665,23 @@ describe('godkjenning og vilkår', () => {
     await assertSucceeds(book(db('alice'), 'alice', pending).commit());
   });
 
+  test('forespørsler må sendes minst 3 timer før timen', async () => {
+    const startingIn = (hours, status) => {
+      const start = new Date(Date.now() + hours * HOUR);
+      return {
+        status,
+        startAt: Timestamp.fromDate(start),
+        endAt: Timestamp.fromDate(new Date(start.getTime() + 45 * 60_000)),
+        cancellableUntil: Timestamp.fromDate(new Date(start.getTime() - 24 * HOUR)),
+      };
+    };
+    // Vanlige salonger har ingen slik frist
+    await assertSucceeds(book(db('bob'), 'bob', { bookingId: 'vanlig', staffId: 'jonas', overrides: startingIn(1, 'confirmed') }).commit());
+    await requireApproval();
+    await assertFails(book(db('alice'), 'alice', { overrides: startingIn(2.5, 'pending') }).commit());
+    await assertSucceeds(book(db('alice'), 'alice', { overrides: startingIn(4, 'pending') }).commit());
+  });
+
   test('vanlige salonger får ikke forespørsler', async () => {
     await assertFails(book(db('alice'), 'alice', pending).commit());
   });

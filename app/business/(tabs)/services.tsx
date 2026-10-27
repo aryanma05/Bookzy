@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
@@ -24,7 +25,18 @@ export default function ServicesScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={styles.headerInner}>
           <Text variant="title" style={styles.flex}>Tjenester</Text>
-          {salon.services.length > 0 && <Button title="Ny tjeneste" size="sm" icon="add" onPress={addService} />}
+          {salon.services.length > 0 && (
+            <>
+              <IconButton
+                icon="share-social-outline"
+                variant="soft"
+                size={36}
+                onPress={() => router.push('/business/price-list')}
+                accessibilityLabel="Del prisliste"
+              />
+              <Button title="Ny tjeneste" size="sm" icon="add" onPress={addService} />
+            </>
+          )}
         </View>
       </View>
 

@@ -1,27 +1,18 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useFonts } from 'expo-font';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Sharing from 'expo-sharing';
-import { captureRef } from 'react-native-view-shot';
-import { GreatVibes_400Regular } from '@expo-google-fonts/great-vibes/400Regular';
-import { PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display/700Bold';
-import { LogoMark } from '@/components/logo';
+import { Poster, POSTER_THEMES, PosterThemePicker, sharePoster, usePosterFonts } from '@/components/business/poster';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
-import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Text } from '@/components/ui/text';
-import { colors, fonts, radius, shadows } from '@/constants/theme';
+import { colors, fonts } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
 import { useNow } from '@/hooks/use-now';
 import { useSalonBookings } from '@/hooks/use-salon-bookings';
-import { showAlert } from '@/lib/alert';
-import { haptics } from '@/lib/haptics';
 import { formatDuration } from '@/lib/salons';
 import {
   addDays,
@@ -41,110 +32,9 @@ import {
 
 type Mode = 'month' | 'week';
 
-type PosterTheme = {
-  key: string;
-  label: string;
-  /** Ovenfra og ned; to like farger gir ensfarget bakgrunn */
-  background: [string, string];
-  ink: string;
-  muted: string;
-  line: string;
-  /** Med kortfarge vises dagene som egne kort i stedet for et rutenett */
-  card?: string;
-  headingFont: string;
-  headingSize: number;
-  lowercase?: boolean;
-  dark?: boolean;
-};
-
-const SCRIPT = 'GreatVibes_400Regular';
-const SERIF = 'PlayfairDisplay_700Bold';
-
-const THEMES: PosterTheme[] = [
-  {
-    key: 'simple',
-    label: 'Enkel',
-    background: ['#FFFFFF', '#FFFFFF'],
-    ink: colors.ink,
-    muted: colors.textMuted,
-    line: colors.ink,
-    headingFont: fonts.extrabold,
-    headingSize: 46,
-    lowercase: true,
-  },
-  {
-    key: 'rose',
-    label: 'Rosa',
-    background: ['#FDF2F4', '#F7D9E0'],
-    ink: '#7A2E46',
-    muted: '#C08A9B',
-    line: '#E8B9C6',
-    card: 'rgba(255, 255, 255, 0.78)',
-    headingFont: SCRIPT,
-    headingSize: 70,
-  },
-  {
-    key: 'night',
-    label: 'Natt',
-    background: ['#26221F', '#0E0D0C'],
-    ink: '#E8D2A2',
-    muted: '#857A66',
-    line: 'rgba(232, 210, 162, 0.4)',
-    headingFont: SCRIPT,
-    headingSize: 70,
-    dark: true,
-  },
-  {
-    key: 'pastel',
-    label: 'Pastell',
-    background: ['#E6E1FF', '#FFE3D6'],
-    ink: '#3B3363',
-    muted: '#9A90C0',
-    line: '#C9C1EC',
-    card: 'rgba(255, 255, 255, 0.62)',
-    headingFont: fonts.extrabold,
-    headingSize: 46,
-    lowercase: true,
-  },
-  {
-    key: 'beige',
-    label: 'Beige',
-    background: ['#F5EEE5', '#EBDFD0'],
-    ink: '#5A4434',
-    muted: '#AE9886',
-    line: '#D9C9B6',
-    card: '#FBF7F2',
-    headingFont: SERIF,
-    headingSize: 50,
-  },
-];
-
 const WEEKDAYS = ['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø'];
 // Flere tider enn dette får ikke plass i en rute når bildet skal passe i en story
 const MAX_TIMES_IN_CELL = 5;
-
-/**
- * Deler bildet på nettet med delingsmenyen der den finnes, ellers lastes det ned.
- * Gir false når nettleseren vil ha et nytt trykk fordi bildet tok for lang tid å lage (vanlig på mobil).
- */
-async function shareOnWeb(file: File, mayAskAgain: boolean) {
-  try {
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file] });
-      return true;
-    }
-  } catch (error) {
-    const name = (error as Error).name;
-    if (name === 'AbortError') return true;
-    if (name === 'NotAllowedError' && mayAskAgain) return false;
-    // Nettleseren nektet å dele av en annen grunn, så vi laster det ned i stedet
-  }
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(file);
-  link.download = file.name;
-  link.click();
-  return true;
-}
 
 export default function AvailabilityScreen() {
   const router = useRouter();
@@ -152,11 +42,11 @@ export default function AvailabilityScreen() {
   const now = useNow();
   const { salon } = useBusiness();
   const posterRef = useRef<View>(null);
-  const [fontsLoaded, fontError] = useFonts({ [SCRIPT]: GreatVibes_400Regular, [SERIF]: PlayfairDisplay_700Bold });
+  const fontsReady = usePosterFonts();
   const [mode, setMode] = useState<Mode>('month');
   const [anchorKey, setAnchorKey] = useState(() => toDateKey(new Date()));
   const [serviceId, setServiceId] = useState<string | null>(null);
-  const [themeKey, setThemeKey] = useState(THEMES[0].key);
+  const [themeKey, setThemeKey] = useState(POSTER_THEMES[0].key);
   const [sharing, setSharing] = useState(false);
   // Bildet som er laget på nettet, men som nettleseren ville ha et nytt trykk for å dele
   const [prepared, setPrepared] = useState<{ file: File; madeFor: unknown[] } | null>(null);
@@ -174,11 +64,11 @@ export default function AvailabilityScreen() {
 
   const todayKey = toDateKey(now);
   const service = salon.services.find((item) => item.id === serviceId) ?? salon.services[0];
-  const theme = THEMES.find((item) => item.key === themeKey) ?? THEMES[0];
+  const theme = POSTER_THEMES.find((item) => item.key === themeKey) ?? POSTER_THEMES[0];
   const staffIds = salon.staff.map((member) => member.id);
   const active = (bookings ?? []).filter((booking) => booking.status !== 'cancelled');
   const posterWidth = Math.min(width - 32, 420);
-  const loading = bookings === null || !(fontsLoaded || fontError);
+  const loading = bookings === null || !fontsReady;
 
   // Bakover går bare til perioden vi er i nå; den starter på dagen i dag, så uke- og månedsvisning henger sammen
   const canGoBack = toDateKey(first) > todayKey;
@@ -219,21 +109,8 @@ export default function AvailabilityScreen() {
       return;
     }
     setSharing(true);
-    try {
-      if (Platform.OS !== 'web') {
-        const uri = await captureRef(posterRef, { format: 'png', quality: 1, result: 'tmpfile' });
-        await Sharing.shareAsync(uri, { mimeType: 'image/png', UTI: 'public.png', dialogTitle: 'Del ledige timer' });
-        return;
-      }
-      const uri = await captureRef(posterRef, { format: 'png', quality: 1, result: 'data-uri' });
-      const file = new File([await (await fetch(uri)).blob()], 'ledige-timer.png', { type: 'image/png' });
-      if (!(await shareOnWeb(file, true))) setPrepared({ file, madeFor: posterInputs });
-    } catch (shareError) {
-      console.error('Kunne ikke dele bildet:', shareError);
-      showAlert('Kunne ikke lage bildet', 'Prøv igjen om litt.');
-    } finally {
-      setSharing(false);
-    }
+    await sharePoster(posterRef, 'ledige-timer.png', 'Del ledige timer');
+    setSharing(false);
   };
 
   const [monthName, year] = formatMonth(first).split(' ');
@@ -308,32 +185,7 @@ export default function AvailabilityScreen() {
                 ))}
               </ScrollView>
             )}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themes}>
-              {THEMES.map((item) => {
-                const selected = item.key === theme.key;
-                return (
-                  <PressableScale
-                    key={item.key}
-                    scaleTo={0.94}
-                    onPress={() => {
-                      haptics.select();
-                      setThemeKey(item.key);
-                    }}
-                    style={styles.themeOption}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`Stil: ${item.label}`}
-                  >
-                    <LinearGradient colors={item.background} style={[styles.themeSwatch, selected && styles.themeSwatchSelected]}>
-                      <Text style={{ fontFamily: item.headingFont, fontSize: item.headingFont === SCRIPT ? 26 : 19, color: item.ink }}>
-                        Aa
-                      </Text>
-                    </LinearGradient>
-                    <Text variant="caption" color={selected ? colors.ink : colors.textSecondary}>{item.label}</Text>
-                  </PressableScale>
-                );
-              })}
-            </ScrollView>
+            <PosterThemePicker value={theme.key} onChange={setThemeKey} />
           </View>
 
           {error ? (
@@ -343,24 +195,7 @@ export default function AvailabilityScreen() {
               <ActivityIndicator color={colors.primary} />
             </View>
           ) : (
-            <View ref={posterRef} collapsable={false} style={[styles.poster, { width: posterWidth, minHeight: (posterWidth * 16) / 9 }]}>
-              <LinearGradient colors={theme.background} style={StyleSheet.absoluteFill} />
-              <View style={styles.posterHeader}>
-                <Text style={[styles.posterSalon, { color: theme.muted }]} numberOfLines={1}>{salon.name}</Text>
-                <Text
-                  style={{
-                    fontFamily: theme.headingFont,
-                    fontSize: theme.headingSize,
-                    lineHeight: theme.headingSize * (theme.headingFont === SCRIPT ? 1.3 : 1.17),
-                    letterSpacing: theme.headingFont === SCRIPT ? 0 : -theme.headingSize * 0.03,
-                    color: theme.ink,
-                  }}
-                >
-                  {theme.lowercase ? title.toLowerCase() : title}
-                </Text>
-                <Text style={[styles.posterSubtitle, { color: theme.muted }]}>{subtitle}</Text>
-              </View>
-
+            <Poster ref={posterRef} theme={theme} width={posterWidth} salonName={salon.name} title={title} subtitle={subtitle}>
               {mode === 'month' ? (
                 <View style={theme.card ? styles.cardGrid : { borderTopWidth: 1, borderLeftWidth: 1, borderColor: theme.line }}>
                   <View style={[styles.gridRow, theme.card && styles.cardRow]}>
@@ -430,12 +265,7 @@ export default function AvailabilityScreen() {
                   })}
                 </View>
               )}
-
-              <View style={styles.watermark}>
-                <LogoMark height={9} white={theme.dark} />
-                <Text style={[styles.watermarkText, { color: theme.ink }]}>Bookzy</Text>
-              </View>
-            </View>
+            </Poster>
           )}
 
           <Text variant="caption" align="center" style={styles.hint}>
@@ -464,32 +294,7 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   navTitle: { flex: 1, color: colors.ink },
   chips: { gap: 8 },
-  themes: { gap: 12, paddingVertical: 2 },
-  themeOption: { alignItems: 'center', gap: 4 },
-  themeSwatch: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  themeSwatchSelected: { borderWidth: 2.5, borderColor: colors.primary },
   loading: { alignItems: 'center', justifyContent: 'center' },
-  // Uten avrundede hjørner, så det delte bildet ikke får gjennomsiktige kanter
-  poster: {
-    overflow: 'hidden',
-    paddingHorizontal: 16,
-    paddingTop: 36,
-    paddingBottom: 28,
-    justifyContent: 'center',
-    gap: 22,
-    ...shadows.card,
-  },
-  posterHeader: { alignItems: 'center' },
-  posterSalon: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.6, textTransform: 'uppercase', marginBottom: 4 },
-  posterSubtitle: { fontFamily: fonts.medium, fontSize: 15 },
   gridRow: { flexDirection: 'row' },
   cardGrid: { gap: 3 },
   cardRow: { gap: 3 },
@@ -507,8 +312,6 @@ const styles = StyleSheet.create({
   weekTimes: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 4 },
   weekTime: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 22 },
   weekEmpty: { fontFamily: fonts.medium, fontSize: 14 },
-  watermark: { position: 'absolute', right: 14, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 4, opacity: 0.4 },
-  watermarkText: { fontFamily: fonts.semibold, fontSize: 10 },
   hint: { maxWidth: 420 },
   shareButton: { maxWidth: 420 },
 });

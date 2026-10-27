@@ -20,7 +20,7 @@ import { sendSmsCode, smsSignInSupported } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
 import { formatPhone, toE164 } from '@/lib/phone';
 import { displayAddress, formatCancellationPolicy, formatDuration, formatPrice } from '@/lib/salons';
-import { formatDay, formatShortDate, fromDateKey, toMinutes, toStartDate, toTime } from '@/lib/schedule';
+import { formatDay, formatShortDate, fromDateKey, REQUEST_LEAD_HOURS, toMinutes, toStartDate, toTime } from '@/lib/schedule';
 
 function DetailRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
   return (
@@ -99,6 +99,13 @@ export default function ConfirmBookingScreen() {
     };
     setErrors(nextErrors);
     if (!number || nextErrors.name || nextErrors.code || nextErrors.terms) return;
+    // Tiden kan ha kommet for nær mens kunden fylte ut
+    if (salon.requiresApproval && startAt.getTime() - now.getTime() < REQUEST_LEAD_HOURS * 60 * 60 * 1000) {
+      showAlert('Tiden er for nær', `Forespørsler må sendes minst ${REQUEST_LEAD_HOURS} timer før timen. Velg en senere tid.`, [
+        { text: 'Velg ny tid', onPress: () => router.back() },
+      ]);
+      return;
+    }
     setSubmitting(true);
     try {
       if (!user) {

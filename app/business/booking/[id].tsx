@@ -17,7 +17,7 @@ import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
 import { openPhoneLink } from '@/lib/links';
 import { formatDuration, formatPrice } from '@/lib/salons';
-import { formatDay, formatFullDate, formatTimeRange } from '@/lib/schedule';
+import { formatDay, formatFullDate, formatTimeRange, REQUEST_LEAD_HOURS } from '@/lib/schedule';
 
 function statusFor(booking: Booking, now: Date) {
   if (booking.status === 'cancelled') {
@@ -121,10 +121,17 @@ export default function SalonBookingScreen() {
       ]
     );
 
+  // Kunden har kanskje ikke sett at timen ble godkjent, eller adressen, før det er for sent
+  const late = booking.startAt.getTime() - now.getTime() < REQUEST_LEAD_HOURS * 60 * 60 * 1000;
+  const approveMessage =
+    (salon.address ? `${firstName} får se adressen din (${salon.address}).` : `${firstName} ser at timen er bekreftet.`) +
+    (late
+      ? ` Timen starter ${formatDay(booking.startAt, now).toLowerCase()} kl ${booking.time}, så det er ikke sikkert ${firstName} ser svaret i tide. Send gjerne en SMS også.`
+      : '');
   const confirmApprove = () =>
     showAlert(
       `Godkjenne timen til ${firstName}?`,
-      salon.address ? `${firstName} får se adressen din (${salon.address}).` : `${firstName} ser at timen er bekreftet.`,
+      approveMessage,
       [
         { text: 'Avbryt', style: 'cancel' },
         { text: 'Godkjenn', onPress: () => run(() => approveBooking(booking), 'Kunne ikke godkjenne timen.') },
@@ -199,7 +206,9 @@ export default function SalonBookingScreen() {
               <Button title="Godkjenn" icon="checkmark" loading={busy} onPress={confirmApprove} style={styles.flex} />
             </View>
             <Text variant="caption" align="center" color={colors.textMuted}>
-              {firstName} ser ikke adressen din før du har godkjent timen.
+              {late
+                ? `Timen starter snart. Send gjerne en SMS til ${firstName} når du har svart, så du vet at beskjeden kommer frem.`
+                : `${firstName} ser ikke adressen din før du har godkjent timen.`}
             </Text>
           </View>
         )}

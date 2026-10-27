@@ -35,7 +35,7 @@ export default function RegisterBusinessScreen() {
 
   // Når bedriften er opprettet, går vi videre til oppsettet
   if (salon) {
-    return <Redirect href="/business/salon" />;
+    return <Redirect href="/business/setup" />;
   }
 
   const submit = async () => {
@@ -86,7 +86,8 @@ export default function RegisterBusinessScreen() {
       footer={<Button title="Opprett bedrift" loading={saving} onPress={submit} style={styles.flex} />}
     >
       <Text variant="body" color={colors.textSecondary}>
-        Siden din er skjult for kundene til du har lagt inn tjenester og velger å publisere den.
+        Først det grunnleggende om bedriften. Etterpå viser vi deg steg for steg resten av det som trengs, og siden er skjult for
+        kundene til du velger å publisere den.
       </Text>
 
       <Text variant="heading" style={styles.heading}>Bedriften</Text>
