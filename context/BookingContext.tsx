@@ -15,7 +15,7 @@ import {
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { registerForPush } from '@/lib/push';
-import { slotId, slotTimesFor, toStartDate } from '@/lib/schedule';
+import { isDayOff, slotId, slotTimesFor, toStartDate } from '@/lib/schedule';
 import type { Salon, Service } from '@/lib/salons';
 import { useAuth } from './AuthContext';
 
@@ -160,9 +160,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     const cancellableUntil = new Date(startAt.getTime() - salon.cancellationHours * 60 * 60 * 1000);
 
     // Ved «hvem som helst» prøves de ansatte i tilfeldig rekkefølge, så timene fordeles jevnt.
-    const candidates = staffId
-      ? salon.staff.filter((member) => member.id === staffId)
-      : [...salon.staff].sort(() => Math.random() - 0.5);
+    // De som har fri, hoppes over – lukene deres er ledige, men reglene avviser bookingen.
+    const candidates = (
+      staffId ? salon.staff.filter((member) => member.id === staffId) : [...salon.staff].sort(() => Math.random() - 0.5)
+    ).filter((member) => !isDayOff(salon.closedDates, date, member.id));
 
     await runTransaction(db, async (transaction) => {
       let chosen: { staff: (typeof candidates)[number]; refs: DocumentReference[] } | null = null;

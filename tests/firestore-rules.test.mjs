@@ -229,6 +229,16 @@ describe('opprette booking', () => {
     await assertFails(book(db('alice'), 'alice', { overrides: { salonId: 'finnes-ikke' } }).commit());
   });
 
+  test('første luke må være starttiden', async () => {
+    await assertFails(book(db('alice'), 'alice', { overrides: { time: '14:00' } }).commit());
+  });
+
+  test('skjulte salonger tar ikke imot bookinger, men eieren kan prøve', async () => {
+    await asAdmin((firestore) => updateDoc(doc(firestore, 'salons', SALON_ID), { published: false }));
+    await assertFails(book(db('alice'), 'alice').commit());
+    await assertSucceeds(book(db(OWNER), OWNER).commit());
+  });
+
   test('luke-ID må stemme med salong, ansatt, dato og tid', async () => {
     const firestore = db('alice');
     const batch = writeBatch(firestore);
