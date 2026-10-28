@@ -105,10 +105,6 @@ function useGoBack(owner: boolean) {
   return () => (router.canGoBack() ? router.back() : router.replace(owner ? '/business/salon' : '/explore'));
 }
 
-function salonPhotos(salon: Salon) {
-  return salon.photos.length > 0 ? salon.photos : salon.imageUrl ? [salon.imageUrl] : [];
-}
-
 function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
   const goBack = useGoBack(owner);
   const insets = useSafeAreaInsets();
@@ -152,7 +148,7 @@ function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
     ],
   }));
 
-  const photos = salonPhotos(salon);
+  const photos = salon.photos;
 
   return (
     <View style={styles.screen}>
@@ -218,7 +214,7 @@ function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
 function SalonPage({ salon, owner }: { salon: Salon; owner: boolean }) {
   const goBack = useGoBack(owner);
   const { reviews, loading: reviewsLoading } = useSalonReviews(salon.id, salon.reviewCount);
-  const photos = salonPhotos(salon);
+  const photos = salon.photos;
 
   return (
     <View style={styles.page}>
@@ -443,7 +439,10 @@ function AboutSalon({ salon }: { salon: Salon }) {
           </>
         ) : (
           <Text variant="body" color={colors.textSecondary}>
-            {salon.area}. Dette er en hjemmesalong – du får nøyaktig adresse av {salon.name}.
+            {salon.area}.{' '}
+            {salon.requiresApproval
+              ? 'Du får adressen når timen er godkjent.'
+              : `Dette er en hjemmesalong – du får nøyaktig adresse av ${salon.name}.`}
           </Text>
         )}
       </View>

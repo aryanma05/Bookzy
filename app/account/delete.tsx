@@ -11,7 +11,9 @@ import { authErrorMessage, useAuth } from '@/context/AuthContext';
 import { canCancel, useBookings } from '@/context/BookingContext';
 import { useBusiness } from '@/context/BusinessContext';
 import { useNow } from '@/hooks/use-now';
+import { fetchUpcomingBookings } from '@/hooks/use-salon-bookings';
 import { showAlert } from '@/lib/alert';
+import { toDateKey } from '@/lib/schedule';
 
 // Firebase krever nylig innlogging for å slette en konto. Med SMS har vi ikke passord å spørre om.
 const RECENT_SIGN_IN_MS = 4 * 60 * 1000;
@@ -46,6 +48,19 @@ export default function DeleteAccountScreen() {
     }
     setDeleting(true);
     try {
+      // Uten eier får ingen vite om timene, så kundene må få beskjed først
+      if (salon) {
+        const customers = (await fetchUpcomingBookings(salon.id, toDateKey(new Date()))).filter(
+          (booking) => booking.userId !== user?.uid && booking.endAt.getTime() > Date.now()
+        );
+        if (customers.length > 0) {
+          showAlert(
+            `${salon.name} har ${customers.length} kommende ${customers.length === 1 ? 'time' : 'timer'}`,
+            'Avbestill dem i kalenderen først, så kundene får beskjed.'
+          );
+          return;
+        }
+      }
       if (usesPassword) await reauthenticate(password);
       // Uten eier er det ingen som ser bookingene, så siden skjules.
       // shortcut: bildene i Storage (salons/{id}/) blir liggende, rydd dem med en Cloud Function hvis det blir mange.

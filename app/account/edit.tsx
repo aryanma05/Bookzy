@@ -100,7 +100,7 @@ export default function EditProfileScreen() {
           <View style={styles.avatar}>
             <Avatar name={nameValue || '?'} size={84} />
           </View>
-          <TextField label="Navn" icon="person-outline" value={nameValue} onChangeText={setName} autoComplete="name" error={error} />
+          <TextField label="Navn" icon="person-outline" value={nameValue} onChangeText={setName} autoComplete="name" maxLength={80} error={error} />
           <TextField
             label="Telefonnummer"
             icon="call-outline"
@@ -112,6 +112,7 @@ export default function EditProfileScreen() {
             editable={!verifiedPhone && !confirmation}
             keyboardType="phone-pad"
             autoComplete="tel"
+            maxLength={20}
             error={confirmation ? undefined : smsError}
             hint={
               verifiedPhone

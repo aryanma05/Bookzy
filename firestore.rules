@@ -159,6 +159,9 @@ service cloud.firestore {
           'slotIds', 'status', 'createdAt', 'replacesBookingId'
         ])
         && request.resource.data.userId == request.auth.uid
+        // Skjulte salonger tar ikke imot nye bookinger, men eieren kan prøve sin egen side
+        && (get(salonPath(request.resource.data.salonId)).data.get('published', true) == true
+          || get(salonPath(request.resource.data.salonId)).data.get('ownerId', null) == request.auth.uid)
         // Hos salonger som godkjenner bookinger selv, blir timen en forespørsel, og den må sendes minst 3 timer før
         // (REQUEST_LEAD_HOURS i appen), så salongen rekker å svare
         && request.resource.data.status
@@ -191,6 +194,9 @@ service cloud.firestore {
         && request.resource.data.slotIds is list
         && request.resource.data.slotIds.size() > 0
         && request.resource.data.slotIds.size() <= 16
+        // Første luke er starttiden, ellers kunne en time legges oppå en annen med en ledig luke et annet sted
+        && request.resource.data.slotIds[0] == request.resource.data.salonId + '_' + request.resource.data.staffId + '_'
+          + request.resource.data.date + '_' + request.resource.data.time
         // Bookingen må skrives sammen med lukene sine (samme transaksjon)
         && getAfter(slotPath(request.resource.data.slotIds[0])).data.bookingId == bookingId
         // Flyttes en time, avbestilles den gamle i samme operasjon. Brukes til å si «flyttet» i varslene.

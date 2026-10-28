@@ -225,6 +225,7 @@ export default function LoginScreen() {
                     onChangeText={setPhone}
                     keyboardType="phone-pad"
                     autoComplete="tel"
+                    maxLength={20}
                     hint="Salongene bruker nummeret hvis noe endrer seg."
                   />
                 </Animated.View>

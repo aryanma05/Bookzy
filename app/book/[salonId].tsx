@@ -41,6 +41,8 @@ export default function ChooseTimeScreen() {
 
   const salon = getSalon(params.salonId);
   const service = salon?.services.find((item) => item.id === params.serviceId);
+  // Skjulte salonger tar ikke imot nye bookinger (f.eks. fra «Book igjen»), men eieren kan prøve sin egen side
+  const hidden = !!salon && !salon.published && salon.ownerId !== user?.uid;
   const replacing = params.replaces ? bookings.find((booking) => booking.id === params.replaces) : undefined;
 
   const [staffId, setStaffId] = useState<string | null>(params.staffId || null);
@@ -61,11 +63,16 @@ export default function ChooseTimeScreen() {
     );
   }
 
-  if (!salon || !service) {
+  if (!salon || !service || hidden) {
     return (
       <View style={styles.screen}>
         <ScreenHeader title="Velg tid" />
-        <EmptyState icon="alert-circle-outline" title="Fant ikke tjenesten" actionLabel="Tilbake" onAction={() => router.back()} />
+        <EmptyState
+          icon="alert-circle-outline"
+          title={hidden ? 'Salongen tar ikke imot bookinger nå' : 'Fant ikke tjenesten'}
+          actionLabel="Tilbake"
+          onAction={() => router.back()}
+        />
       </View>
     );
   }
