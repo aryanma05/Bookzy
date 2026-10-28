@@ -28,7 +28,8 @@ export async function sendSms(to: string, text: string, key: string): Promise<vo
   if (!(await claim(`sms_${key.replace(/\//g, '_')}`))) return;
 
   // 46elks tar skjemadata, ikke JSON. Nummeret er allerede +47… fra Firebase, slik 46elks vil ha det.
+  // Kopierer man passordet fra dashbordet hos 46elks, kommer det lett med et mellomrom, og da svarer de 401.
   await postJson('https://api.46elks.com/a1/sms', new URLSearchParams({ from: SENDER, to, message: text }), {
-    authorization: `Basic ${Buffer.from(`${user}:${elksApiPassword.value()}`).toString('base64')}`,
+    authorization: `Basic ${Buffer.from(`${user}:${elksApiPassword.value().trim()}`).toString('base64')}`,
   });
 }
