@@ -20,6 +20,7 @@ import { RatingSummary, ReviewItem } from '@/components/review-item';
 import { SalonPhoto } from '@/components/salon-photo';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -46,7 +47,7 @@ import {
   groupServices,
   type Salon,
 } from '@/lib/salons';
-import { openStatus, WEEK, weekdayKey } from '@/lib/schedule';
+import { capitalize, openStatus, WEEK, weekdayKey } from '@/lib/schedule';
 
 const IMAGE_HEIGHT = 300;
 
@@ -254,9 +255,9 @@ function SalonPage({ salon, owner }: { salon: Salon; owner: boolean }) {
           <View style={styles.columns}>
             <View style={styles.mainColumn}>
               <SalonIntro salon={salon} />
-              <Text variant="heading" style={styles.pageHeading}>Tjenester</Text>
+              <Text variant="title" style={styles.pageHeading}>Tjenester</Text>
               <ServiceList salon={salon} />
-              <Text variant="heading" style={styles.pageHeading}>Anmeldelser</Text>
+              <Text variant="title" style={styles.pageHeading}>Anmeldelser</Text>
               <ReviewList salon={salon} reviews={reviews} loading={reviewsLoading} />
             </View>
             <View style={styles.aside}>
@@ -325,32 +326,51 @@ function SalonIntro({ salon, onRatingPress }: { salon: Salon; onRatingPress?: ()
 
 function ServiceList({ salon }: { salon: Salon }) {
   const router = useRouter();
+  const [category, setCategory] = useState<string | null>(null);
   const book = (serviceId: string) => router.push({ pathname: '/book/[salonId]', params: { salonId: salon.id, serviceId } });
 
   if (salon.services.length === 0) {
     return <EmptyState icon="list-outline" title="Ingen tjenester ennå" message="Salongen har ikke lagt inn tjenester." />;
   }
 
+  const groups = groupServices(salon.services);
+  // Kategorien kan forsvinne hvis salongen endrer tjenestene mens siden er åpen
+  const selected = groups.some((group) => group.category === category) ? category : null;
+
   return (
     <>
-      {groupServices(salon.services).map((group) => (
-        <View key={group.category} style={styles.serviceGroup}>
-          <Text variant="overline">{group.category}</Text>
-          {group.services.map((service, index) => (
-            <View key={service.id} style={[styles.service, index < group.services.length - 1 && styles.serviceDivider]}>
-              {service.imageUrl ? (
-                <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} contentFit="cover" transition={200} />
-              ) : null}
-              <View style={styles.serviceText}>
-                <Text variant="bodyStrong">{service.name}</Text>
-                {service.description ? <Text variant="caption">{service.description}</Text> : null}
-                <Text variant="caption" color={colors.textMuted}>
-                  {formatDuration(service.durationMin)} · {formatPrice(service.priceNok)}
-                </Text>
-              </View>
-              <Button title="Book" size="sm" onPress={() => book(service.id)} />
-            </View>
+      {groups.length > 1 && (
+        <View style={styles.categoryChips}>
+          {groups.map((group) => (
+            <Chip
+              key={group.category}
+              label={capitalize(group.category)}
+              selected={group.category === selected}
+              onPress={() => setCategory(group.category === selected ? null : group.category)}
+            />
           ))}
+        </View>
+      )}
+      {groups.filter((group) => !selected || group.category === selected).map((group) => (
+        <View key={group.category} style={styles.serviceGroup}>
+          <Text variant="heading">{capitalize(group.category)}</Text>
+          <View style={styles.serviceCard}>
+            {group.services.map((service, index) => (
+              <View key={service.id} style={[styles.service, index < group.services.length - 1 && styles.serviceDivider]}>
+                {service.imageUrl ? (
+                  <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} contentFit="cover" transition={200} />
+                ) : null}
+                <View style={styles.serviceText}>
+                  <Text variant="bodyStrong">{service.name}</Text>
+                  {service.description ? <Text variant="caption">{service.description}</Text> : null}
+                  <Text variant="caption" color={colors.textMuted}>
+                    {formatDuration(service.durationMin)} · {formatPrice(service.priceNok)}
+                  </Text>
+                </View>
+                <Button title="Book" size="sm" onPress={() => book(service.id)} />
+              </View>
+            ))}
+          </View>
         </View>
       ))}
     </>
@@ -508,7 +528,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabContent: { marginTop: 18 },
-  serviceGroup: { marginBottom: 18, gap: 4 },
+  categoryChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  serviceGroup: { marginBottom: 24, gap: 10 },
+  serviceCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, paddingHorizontal: 16 },
   service: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   serviceDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   serviceText: { flex: 1, gap: 2 },

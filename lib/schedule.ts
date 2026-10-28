@@ -35,7 +35,7 @@ export const WEEK: { key: WeekdayKey; label: string }[] = [
 ];
 
 const pad = (value: number) => String(value).padStart(2, '0');
-const capitalize = (text: string) => text[0].toUpperCase() + text.slice(1);
+export const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** '2026-10-06' – brukes som dato i Firestore og i slot-ID-er. */
 export function toDateKey(date: Date): string {
