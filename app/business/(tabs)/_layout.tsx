@@ -4,6 +4,7 @@ import { useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Sidebar } from '@/components/business/sidebar';
 import { colors, fonts } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { haptics } from '@/lib/haptics';
@@ -32,29 +33,21 @@ export default function BusinessTabLayout() {
 
   return (
     <Tabs
+      tabBar={sidebar ? (props) => <Sidebar {...props} /> : undefined}
       screenListeners={{ tabPress: () => haptics.select() }}
       screenOptions={{
         headerShown: false,
         tabBarPosition: sidebar ? 'left' : 'bottom',
-        tabBarActiveTintColor: sidebar ? colors.primaryDark : colors.primary,
-        tabBarInactiveTintColor: sidebar ? colors.textSecondary : colors.textMuted,
-        tabBarActiveBackgroundColor: sidebar ? colors.primarySoft : undefined,
-        tabBarLabelStyle: { fontFamily: fonts.semibold, fontSize: sidebar ? 15 : 11, lineHeight: sidebar ? 20 : 15 },
-        tabBarStyle: sidebar
-          ? {
-              backgroundColor: colors.surface,
-              borderRightColor: colors.border,
-              width: 232,
-              minWidth: 232,
-              paddingTop: insets.top + 20,
-            }
-          : {
-              backgroundColor: colors.surface,
-              borderTopColor: colors.border,
-              height: 62 + bottomPadding,
-              paddingTop: 6,
-              paddingBottom: bottomPadding,
-            },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarLabelStyle: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 15 },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          height: 62 + bottomPadding,
+          paddingTop: 6,
+          paddingBottom: bottomPadding,
+        },
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
