@@ -10,6 +10,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
+import { useEmailVerification } from '@/hooks/use-email-verification';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
 import { salonLink, shareBookingLink } from '@/lib/links';
@@ -32,6 +33,7 @@ export default function SetupScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { salon, saveSalon } = useBusiness();
+  const verification = useEmailVerification();
   // Har de lagt inn tjenester før, fortsetter de der de slapp
   const [index, setIndex] = useState(() => (salon && salon.services.length > 0 ? 1 : 0));
   const [publishing, setPublishing] = useState(false);
@@ -39,7 +41,7 @@ export default function SetupScreen() {
   if (!salon) return null;
 
   const openDays = WEEK.filter(({ key }) => salon.openingHours[key]).length;
-  const canPublish = salon.services.length > 0 && openDays > 0;
+  const canPublish = salon.services.length > 0 && openDays > 0 && verification.verified;
   const link = salonLink(salon.id);
 
   const next = () => {
@@ -179,6 +181,10 @@ export default function SetupScreen() {
         <View style={[styles.card, styles.checks]}>
           <Check done={salon.services.length > 0} label={`${salon.services.length} ${salon.services.length === 1 ? 'tjeneste' : 'tjenester'}`} />
           <Check done={openDays > 0} label={openDays > 0 ? `Åpent ${openDays} ${openDays === 1 ? 'dag' : 'dager'} i uka` : 'Ingen åpne dager'} />
+          <Check
+            done={verification.verified}
+            label={verification.verified ? 'E-posten er bekreftet' : 'Bekreft e-posten, så du får beskjed om bookinger'}
+          />
           <Check done={salon.photos.length > 0} label={salon.photos.length > 0 ? `${salon.photos.length} bilder` : 'Ingen bilder ennå (valgfritt)'} />
         </View>
         <Button
@@ -192,7 +198,12 @@ export default function SetupScreen() {
       </>
     );
     actions = (
-      <Button title="Publiser siden" icon="globe-outline" disabled={!canPublish} loading={publishing} onPress={publish} />
+      <>
+        <Button title="Publiser siden" icon="globe-outline" disabled={!canPublish} loading={publishing} onPress={publish} />
+        {!verification.verified && (
+          <Button title="Send lenken på nytt" variant="outline" icon="mail-outline" onPress={verification.send} />
+        )}
+      </>
     );
   }
 
