@@ -134,6 +134,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const { user, initializing } = useAuth();
   const uid = user?.uid ?? null;
   const [snapshot, setSnapshot] = useState<SalonSnapshot | null>(null);
+  const [savedSalonId, setSavedSalonId] = useState<string | null>(null);
   const [businessMode, setMode] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -158,9 +159,12 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     return onSnapshot(
       query(collection(db, 'salons'), where('ownerId', '==', uid)),
+      // Gir også beskjed når en ny salong er lagret på serveren, selv om dataene er de samme
+      { includeMetadataChanges: true },
       (result) => {
         const first = result.docs[0];
         setSnapshot({ uid, salon: first ? toSalon(first.id, first.data()) : null });
+        if (first && !first.metadata.hasPendingWrites) setSavedSalonId(first.id);
       },
       (error) => {
         console.error('Kunne ikke hente bedriften:', error);
@@ -174,7 +178,8 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const [privateAddress, setPrivateAddress] = useState<{ salonId: string; address: string } | null>(null);
 
   useEffect(() => {
-    if (!salonId) return;
+    // Rett etter registrering finnes salongen bare lokalt, og reglene for adressen sjekker eieren i salongen på serveren
+    if (!salonId || salonId !== savedSalonId) return;
     return onSnapshot(
       privateAddressRef(salonId),
       (result) => setPrivateAddress({ salonId, address: result.get('address') ?? '' }),
@@ -183,7 +188,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         setPrivateAddress({ salonId, address: '' });
       }
     );
-  }, [salonId]);
+  }, [salonId, savedSalonId]);
 
   const publicSalon = current?.salon ?? null;
   // Adressen brukes bare med godkjenning. Å vente på den ellers ville vist lastehjulet og nullstilt navigasjonen rett etter registrering.
