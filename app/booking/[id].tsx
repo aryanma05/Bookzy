@@ -10,6 +10,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import { TextField } from '@/components/ui/text-field';
 import { colors, fonts, radius, shadows } from '@/constants/theme';
 import { canCancel, isUpcoming, useBookings } from '@/context/BookingContext';
 import { useSalons } from '@/context/SalonsContext';
@@ -39,6 +40,9 @@ export default function BookingDetailsScreen() {
   const { getSalon } = useSalons();
   const { needsReview, reviewed } = useReviewedBookings(bookings, now);
   const [cancelling, setCancelling] = useState(false);
+  // Avbestillingen bekreftes i et skjema der kunden kan skrive hvorfor
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState('');
 
   const booking = bookings.find((item) => item.id === id);
   const salon = booking ? getSalon(booking.salonId) : undefined;
@@ -85,35 +89,23 @@ export default function BookingDetailsScreen() {
       params: { salonId: booking.salonId, serviceId: booking.serviceId, staffId: booking.staffId, replaces: booking.id },
     });
 
-  const confirmCancel = () =>
-    showAlert(
-      'Avbestille timen?',
-      `${booking.serviceName} hos ${booking.salonName}, ${formatShortDate(booking.startAt)} kl ${booking.time}.`,
-      [
-        { text: 'Behold timen', style: 'cancel' },
-        {
-          text: 'Avbestill',
-          style: 'destructive',
-          onPress: async () => {
-            setCancelling(true);
-            try {
-              await cancelBooking(booking);
-              haptics.success();
-            } catch (error) {
-              console.error('Kunne ikke avbestille:', error);
-              showAlert('Noe gikk galt', 'Kunne ikke avbestille timen. Prøv igjen, eller kontakt salongen.');
-            } finally {
-              setCancelling(false);
-            }
-          },
-        },
-      ]
-    );
+  const cancel = async () => {
+    setCancelling(true);
+    try {
+      await cancelBooking(booking, reason);
+      haptics.success();
+    } catch (error) {
+      console.error('Kunne ikke avbestille:', error);
+      showAlert('Noe gikk galt', 'Kunne ikke avbestille timen. Prøv igjen, eller kontakt salongen.');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <View style={styles.screen}>
       <ScreenHeader title="Timen din" />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <PressableScale style={styles.salonCard} scaleTo={0.98} onPress={() => router.push(`/salon/${booking.salonId}`)}>
           {salon ? <SalonPhoto salon={salon} style={styles.salonImage} iconSize={24} /> : <View style={styles.salonImage} />}
           <View style={styles.salonText}>
@@ -142,6 +134,16 @@ export default function BookingDetailsScreen() {
               <Text variant="body">{booking.note}</Text>
             </View>
           ) : null}
+          {booking.cancelReason ? (
+            <View style={styles.note}>
+              <Text variant="caption" color={colors.textMuted}>
+                {booking.cancelledBy === 'salon' || booking.status === 'declined'
+                  ? `Begrunnelse fra ${booking.salonName}`
+                  : 'Din begrunnelse'}
+              </Text>
+              <Text variant="body">{booking.cancelReason}</Text>
+            </View>
+          ) : null}
         </View>
 
         {upcoming && (
@@ -154,11 +156,27 @@ export default function BookingDetailsScreen() {
                 </Text>
               </View>
             )}
-            {cancellable ? (
+            {cancellable && confirming ? (
+              <>
+                <TextField
+                  label="Hvorfor avbestiller du? (valgfritt)"
+                  placeholder="F.eks. at du har blitt syk"
+                  hint={`${booking.salonName} ser meldingen, og tiden blir ledig for andre.`}
+                  value={reason}
+                  onChangeText={setReason}
+                  multiline
+                  maxLength={200}
+                />
+                <View style={styles.buttonRow}>
+                  <Button title="Behold timen" variant="outline" disabled={cancelling} onPress={() => setConfirming(false)} style={styles.flex} />
+                  <Button title="Avbestill" variant="danger" loading={cancelling} onPress={cancel} style={styles.flex} />
+                </View>
+              </>
+            ) : cancellable ? (
               <>
                 <View style={styles.buttonRow}>
                   <Button title="Endre tid" variant="secondary" icon="swap-horizontal" onPress={reschedule} style={styles.flex} />
-                  <Button title="Avbestill" variant="danger" loading={cancelling} onPress={confirmCancel} style={styles.flex} />
+                  <Button title="Avbestill" variant="danger" onPress={() => setConfirming(true)} style={styles.flex} />
                 </View>
                 <Text variant="caption" align="center">
                   {formatCancellationPolicy(salon?.cancellationHours ?? 24)}

@@ -146,6 +146,11 @@ service cloud.firestore {
       }
     }
 
+    // Valgfri melding om hvorfor timen ble avbestilt eller avslått. Den andre parten ser den.
+    function validCancelReason(data) {
+      return data.get('cancelReason', '') is string && data.get('cancelReason', '').size() <= 200;
+    }
+
     // Kunden ser, oppretter og avbestiller sine egne timer. Salongen ser alle timer hos seg.
     match /bookings/{bookingId} {
       allow read: if signedIn()
@@ -215,14 +220,16 @@ service cloud.firestore {
             || (resource.data.status == 'confirmed' && request.time < resource.data.cancellableUntil))
           && request.resource.data.status == 'cancelled'
           && request.resource.data.cancelledAt == request.time
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']))
+          && validCancelReason(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancelReason']))
         // Salongen kan avbestille når som helst
         || (isSalonOwner(resource.data.salonId)
           && resource.data.status == 'confirmed'
           && request.resource.data.status == 'cancelled'
           && request.resource.data.cancelledAt == request.time
           && request.resource.data.cancelledBy == 'salon'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancelledBy']))
+          && validCancelReason(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt', 'cancelledBy', 'cancelReason']))
         // ... svare på en forespørsel. Godkjent får kunden adressen, avslått frigjøres tiden.
         || (isSalonOwner(resource.data.salonId)
           && resource.data.status == 'pending'
@@ -231,7 +238,8 @@ service cloud.firestore {
               && request.resource.data.address.size() <= 120
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'address']))
             || (request.resource.data.status == 'declined'
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))))
+              && validCancelReason(request.resource.data)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelReason']))))
         // ... og markere at kunden ikke møtte (eller angre det) når timen har startet
         || (isSalonOwner(resource.data.salonId)
           && request.time >= resource.data.startAt

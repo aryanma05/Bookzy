@@ -45,6 +45,8 @@ export type Booking = {
   status: BookingStatus;
   /** Satt når salongen avbestilte. Kunden avbestiller uten å sette feltet. */
   cancelledBy: 'salon' | null;
+  /** Valgfri melding om hvorfor, fra den som avbestilte eller avslo timen. */
+  cancelReason: string;
   /** Adressen salongen ga da den godkjente timen. Tom hos salonger som ikke godkjenner selv. */
   address: string;
   createdAt: Date | null;
@@ -69,7 +71,7 @@ type BookingContextType = {
   loading: boolean;
   error: string | null;
   createBooking: (booking: NewBooking) => Promise<string>;
-  cancelBooking: (booking: Booking) => Promise<void>;
+  cancelBooking: (booking: Booking, reason?: string) => Promise<void>;
 };
 
 /** Kastes når noen andre har booket tiden mens brukeren valgte. */
@@ -102,6 +104,7 @@ export function toBooking(id: string, data: DocumentData): Booking {
     slotIds: data.slotIds ?? [],
     status: data.status,
     cancelledBy: data.cancelledBy === 'salon' ? 'salon' : null,
+    cancelReason: typeof data.cancelReason === 'string' ? data.cancelReason : '',
     address: typeof data.address === 'string' ? data.address : '',
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : null,
   };
@@ -110,6 +113,11 @@ export function toBooking(id: string, data: DocumentData): Booking {
 export function canCancel(booking: Booking, now: Date) {
   // En forespørsel kan trekkes når som helst
   return booking.status === 'pending' || (booking.status === 'confirmed' && now.getTime() < booking.cancellableUntil.getTime());
+}
+
+/** Meldingen lagres bare når det er skrevet noe, så avbestilling uten melding virker som før. */
+export function cancelReasonField(reason: string) {
+  return reason.trim() ? { cancelReason: reason.trim() } : {};
 }
 
 /** Timer som holder av tiden i kalenderen. */
@@ -219,11 +227,12 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     return bookingRef.id;
   };
 
-  const cancelBooking = async (booking: Booking) => {
+  const cancelBooking = async (booking: Booking, reason = '') => {
     const batch = writeBatch(db);
     batch.update(doc(db, 'bookings', booking.id), {
       status: 'cancelled',
       cancelledAt: serverTimestamp(),
+      ...cancelReasonField(reason),
     });
     // Frigjør lukene så andre kan booke tiden.
     booking.slotIds.forEach((id) => batch.delete(doc(db, 'slots', id)));

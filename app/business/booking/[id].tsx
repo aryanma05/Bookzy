@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ScreenHeader } from '@/components/ui/screen-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import { TextField } from '@/components/ui/text-field';
 import { colors, fonts, radius, shadows } from '@/constants/theme';
 import type { Booking } from '@/context/BookingContext';
 import { useBusiness } from '@/context/BusinessContext';
@@ -65,6 +66,9 @@ export default function SalonBookingScreen() {
   const { booking, loading } = useSalonBooking(id);
   const history = useCustomerHistory(salon?.id ?? null, booking?.userId || null);
   const [busy, setBusy] = useState(false);
+  // Avbestilling og avslag bekreftes i et skjema der salongen kan skrive hvorfor
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState('');
 
   if (loading) {
     return (
@@ -107,20 +111,6 @@ export default function SalonBookingScreen() {
     }
   };
 
-  const confirmCancel = () =>
-    showAlert(
-      `Avbestille timen til ${firstName}?`,
-      `Tiden blir ledig for andre, og ${firstName} ser i appen at du har avbestilt. Send gjerne en melding også, så ${firstName} får beskjed med en gang.`,
-      [
-        { text: 'Behold timen', style: 'cancel' },
-        {
-          text: 'Avbestill',
-          style: 'destructive',
-          onPress: () => run(() => cancelAsSalon(booking), 'Kunne ikke avbestille timen.'),
-        },
-      ]
-    );
-
   // Kunden har kanskje ikke sett at timen ble godkjent, eller adressen, før det er for sent
   const late = booking.startAt.getTime() - now.getTime() < REQUEST_LEAD_HOURS * 60 * 60 * 1000;
   const approveMessage =
@@ -138,19 +128,11 @@ export default function SalonBookingScreen() {
       ]
     );
 
-  const confirmDecline = () =>
-    showAlert(
-      `Avslå timen til ${firstName}?`,
-      `Tiden blir ledig for andre, og ${firstName} ser i appen at du ikke kunne ta imot bookingen. Adressen din blir ikke vist.`,
-      [
-        { text: 'Avbryt', style: 'cancel' },
-        {
-          text: 'Avslå',
-          style: 'destructive',
-          onPress: () => run(() => declineBooking(booking), 'Kunne ikke avslå timen.'),
-        },
-      ]
-    );
+  const declining = booking.status === 'pending';
+  const cancel = () =>
+    declining
+      ? run(() => declineBooking(booking, reason), 'Kunne ikke avslå timen.')
+      : run(() => cancelAsSalon(booking, reason), 'Kunne ikke avbestille timen.');
 
   const call = () => openPhoneLink(`tel:${phone}`).catch(() => showAlert('Kunne ikke ringe', `Nummeret er ${booking.customerPhone}.`));
   const message = () => openPhoneLink(`sms:${phone}`).catch(() => showAlert('Kunne ikke åpne meldinger', `Nummeret er ${booking.customerPhone}.`));
@@ -158,7 +140,7 @@ export default function SalonBookingScreen() {
   return (
     <View style={styles.screen}>
       <ScreenHeader title="Time" backTo="/business/calendar" />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.card}>
           <View style={styles.customer}>
             <Avatar name={name} size={52} />
@@ -197,12 +179,44 @@ export default function SalonBookingScreen() {
               <Text variant="body">{booking.note}</Text>
             </View>
           ) : null}
+          {booking.cancelReason ? (
+            <View style={styles.note}>
+              <Text variant="caption" color={colors.textMuted}>
+                {booking.cancelledBy === 'salon' || booking.status === 'declined' ? 'Din begrunnelse' : 'Kundens begrunnelse'}
+              </Text>
+              <Text variant="body">{booking.cancelReason}</Text>
+            </View>
+          ) : null}
         </View>
 
-        {booking.status === 'pending' && !started && (
+        {confirming && !started && (booking.status === 'pending' || booking.status === 'confirmed') && (
+          <View style={styles.actions}>
+            <TextField
+              label={declining ? 'Hvorfor avslår du? (valgfritt)' : 'Hvorfor avbestiller du? (valgfritt)'}
+              placeholder={declining ? 'F.eks. at du er fullbooket den dagen' : 'F.eks. at du har blitt syk'}
+              hint={`${firstName} ser meldingen, og tiden blir ledig for andre.`}
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              maxLength={200}
+            />
+            <View style={styles.buttonRow}>
+              <Button
+                title={declining ? 'Avbryt' : 'Behold timen'}
+                variant="outline"
+                disabled={busy}
+                onPress={() => setConfirming(false)}
+                style={styles.flex}
+              />
+              <Button title={declining ? 'Avslå' : 'Avbestill timen'} variant="danger" loading={busy} onPress={cancel} style={styles.flex} />
+            </View>
+          </View>
+        )}
+
+        {booking.status === 'pending' && !started && !confirming && (
           <View style={styles.actions}>
             <View style={styles.buttonRow}>
-              <Button title="Avslå" variant="danger" disabled={busy} onPress={confirmDecline} style={styles.flex} />
+              <Button title="Avslå" variant="danger" disabled={busy} onPress={() => setConfirming(true)} style={styles.flex} />
               <Button title="Godkjenn" icon="checkmark" loading={busy} onPress={confirmApprove} style={styles.flex} />
             </View>
             <Text variant="caption" align="center" color={colors.textMuted}>
@@ -213,9 +227,9 @@ export default function SalonBookingScreen() {
           </View>
         )}
 
-        {booking.status === 'confirmed' && !started && (
+        {booking.status === 'confirmed' && !started && !confirming && (
           <View style={styles.actions}>
-            <Button title="Avbestill timen" variant="danger" loading={busy} onPress={confirmCancel} />
+            <Button title="Avbestill timen" variant="danger" onPress={() => setConfirming(true)} />
             <Text variant="caption" align="center" color={colors.textMuted}>
               Som salong kan du avbestille når som helst, også etter kundens frist.
             </Text>

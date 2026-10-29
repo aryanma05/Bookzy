@@ -18,6 +18,8 @@ export type BookingInfo = {
   date: string;
   time: string;
   cancellableUntil: Date | null;
+  /** Hvorfor timen ble avbestilt eller avslått, hvis den som gjorde det skrev noe. */
+  cancelReason: string;
 };
 
 export type Push = { title: string; body: string };
@@ -96,6 +98,11 @@ ${greeting ? paragraph(greeting) : ''}${paragraph(intro)}${table}${paragraphs.ma
 </html>`;
 
   return { text, html };
+}
+
+/** Meldingen fra den som avbestilte eller avslo, sist i push-varselet. */
+function withReason(body: string, booking: BookingInfo): string {
+  return booking.cancelReason ? `${body} «${booking.cancelReason}»` : body;
 }
 
 function bookingRows(booking: BookingInfo): Row[] {
@@ -177,7 +184,10 @@ export function approvedReceipt(booking: BookingInfo, now: Date, link: string | 
 export function declinedPush(booking: BookingInfo, now: Date): Push {
   return {
     title: 'Timen ble ikke godkjent',
-    body: `${booking.salonName} kunne dessverre ikke ta imot bookingen din ${relativeDate(booking.date, now)} kl ${booking.time}.`,
+    body: withReason(
+      `${booking.salonName} kunne dessverre ikke ta imot bookingen din ${relativeDate(booking.date, now)} kl ${booking.time}.`,
+      booking
+    ),
   };
 }
 
@@ -190,6 +200,7 @@ export function declinedEmail(booking: BookingInfo, link: string | null): Email 
       rows: [
         ['Behandling', booking.serviceName],
         ['Hos', booking.staffName],
+        ['Begrunnelse', booking.cancelReason],
       ],
       paragraphs: ['Du kan booke en annen tid i appen.'],
       link: link ? { label: 'Book ny tid', url: link } : undefined,
@@ -216,7 +227,7 @@ export function cancelledByCustomerReceipt(booking: BookingInfo): Email {
 export function cancelledBySalonPush(booking: BookingInfo, now: Date): Push {
   return {
     title: 'Timen er avlyst',
-    body: `${booking.salonName} har avlyst ${booking.serviceName} ${relativeDate(booking.date, now)} kl ${booking.time}.`,
+    body: withReason(`${booking.salonName} har avlyst ${booking.serviceName} ${relativeDate(booking.date, now)} kl ${booking.time}.`, booking),
   };
 }
 
@@ -230,6 +241,7 @@ export function cancelledBySalonEmail(booking: BookingInfo, link: string | null)
       rows: [
         ['Behandling', booking.serviceName],
         ['Hos', booking.staffName],
+        ['Begrunnelse', booking.cancelReason],
       ],
       paragraphs: [`Du kan booke en ny tid i appen.${call}`],
       link: link ? { label: 'Book ny tid', url: link } : undefined,
@@ -278,6 +290,8 @@ export function bookingSms(booking: BookingInfo, link: string | null, moved?: Bo
 export function cancelledBySalonSms(booking: BookingInfo, link: string | null): string {
   return sms(
     `${booking.salonName} har avlyst ${booking.serviceName} ${when(booking)}.`,
+    // Kan gjøre meldingen lengre enn én SMS, men kunden bør få vite hvorfor
+    booking.cancelReason && `Begrunnelse: "${booking.cancelReason}".`,
     booking.salonPhone && `Lurer du på noe, ring ${booking.salonPhone}.`,
     link && `Book ny tid: ${link}`
   );
@@ -289,7 +303,11 @@ export function approvedSms(booking: BookingInfo, link: string | null): string {
 }
 
 export function declinedSms(booking: BookingInfo, link: string | null): string {
-  return sms(`${booking.salonName} kunne dessverre ikke ta imot bookingen din ${when(booking)}.`, link && `Book ny tid: ${link}`);
+  return sms(
+    `${booking.salonName} kunne dessverre ikke ta imot bookingen din ${when(booking)}.`,
+    booking.cancelReason && `Begrunnelse: "${booking.cancelReason}".`,
+    link && `Book ny tid: ${link}`
+  );
 }
 
 export function reminderSms(booking: BookingInfo, now: Date, link: string | null): string {
@@ -374,7 +392,10 @@ export function newRequestEmail(booking: BookingInfo, link: string | null, moved
 export function cancelledByCustomerPush(booking: BookingInfo, now: Date): Push {
   return {
     title: 'Avbestilling',
-    body: `${shortName(booking.customerName)} har avbestilt ${booking.serviceName} ${relativeDate(booking.date, now)} kl ${booking.time}. Tiden er ledig igjen.`,
+    body: withReason(
+      `${shortName(booking.customerName)} har avbestilt ${booking.serviceName} ${relativeDate(booking.date, now)} kl ${booking.time}. Tiden er ledig igjen.`,
+      booking
+    ),
   };
 }
 
@@ -388,6 +409,7 @@ export function cancelledByCustomerEmail(booking: BookingInfo, link: string | nu
         ['Behandling', booking.serviceName],
         ['Hos', booking.staffName],
         ['Telefon', booking.customerPhone],
+        ['Begrunnelse', booking.cancelReason],
       ],
       link: link ? { label: 'Åpne i kalenderen', url: link } : undefined,
       footer: SALON_FOOTER,
