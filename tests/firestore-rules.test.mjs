@@ -118,8 +118,8 @@ function book(firestore, uid, { bookingId = `booking-${uid}`, staffId = 'maria',
   return batch;
 }
 
-function cancel(batch, firestore, bookingId, { staffId = 'maria', times = ['10:00', '10:30'] } = {}) {
-  batch.update(doc(firestore, 'bookings', bookingId), { status: 'cancelled', cancelledAt: serverTimestamp() });
+function cancel(batch, firestore, bookingId, { staffId = 'maria', times = ['10:00', '10:30'], fields = {} } = {}) {
+  batch.update(doc(firestore, 'bookings', bookingId), { status: 'cancelled', cancelledAt: serverTimestamp(), ...fields });
   for (const time of times) batch.delete(doc(firestore, 'slots', slotIdFor(staffId, time)));
   return batch;
 }
@@ -314,6 +314,15 @@ describe('avbestille og flytte', () => {
       overrides: { replacesBookingId: 'booking-alice' },
     });
     await assertFails(batch.commit());
+  });
+
+  test('kan skrive hvorfor, opptil 200 tegn', async () => {
+    const firestore = db('alice');
+    const withReason = (cancelReason) =>
+      cancel(writeBatch(firestore), firestore, 'booking-alice', { fields: { cancelReason } }).commit();
+    await assertFails(withReason('a'.repeat(201)));
+    await assertFails(withReason(42));
+    await assertSucceeds(withReason('Jeg er dessverre syk'));
   });
 
   test('andre kan ikke avbestille', async () => {
@@ -612,12 +621,13 @@ describe('salongens kalender', () => {
 });
 
 describe('salongen avbestiller', () => {
-  const cancelAsSalon = (firestore, bookingId, times = ['10:00', '10:30']) => {
+  const cancelAsSalon = (firestore, bookingId, times = ['10:00', '10:30'], fields = {}) => {
     const batch = writeBatch(firestore);
     batch.update(doc(firestore, 'bookings', bookingId), {
       status: 'cancelled',
       cancelledAt: serverTimestamp(),
       cancelledBy: 'salon',
+      ...fields,
     });
     for (const time of times) batch.delete(doc(firestore, 'slots', slotIdFor('maria', time)));
     return batch.commit();
@@ -648,6 +658,11 @@ describe('salongen avbestiller', () => {
       )
     );
     await assertSucceeds(cancelAsSalon(db(OWNER), 'snart', []));
+  });
+
+  test('eieren kan skrive hvorfor', async () => {
+    await assertFails(cancelAsSalon(db(OWNER), 'booking-alice', undefined, { cancelReason: 'a'.repeat(201) }));
+    await assertSucceeds(cancelAsSalon(db(OWNER), 'booking-alice', undefined, { cancelReason: 'Jeg er syk i dag' }));
   });
 
   test('andre kan ikke avbestille som salongen', async () => {
@@ -713,6 +728,16 @@ describe('godkjenning og vilkår', () => {
     for (const time of ['10:00', '10:30']) batch.delete(doc(firestore, 'slots', slotIdFor('maria', time)));
     await assertSucceeds(batch.commit());
     await assertSucceeds(book(db('bob'), 'bob', pending).commit());
+  });
+
+  test('eieren kan si hvorfor timen avslås', async () => {
+    await requireApproval();
+    await book(db('alice'), 'alice', pending).commit();
+    const firestore = db(OWNER);
+    const batch = writeBatch(firestore);
+    batch.update(doc(firestore, 'bookings', 'booking-alice'), { status: 'declined', cancelReason: 'Fullbooket den dagen' });
+    for (const time of ['10:00', '10:30']) batch.delete(doc(firestore, 'slots', slotIdFor('maria', time)));
+    await assertSucceeds(batch.commit());
   });
 
   test('kunden kan trekke forespørselen, men ikke godkjenne den selv', async () => {

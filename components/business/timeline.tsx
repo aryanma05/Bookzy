@@ -4,7 +4,8 @@ import { colors, fonts, radius } from '@/constants/theme';
 import type { Booking } from '@/context/BookingContext';
 import { formatTimeRange, toMinutes, toTime, type DayHours } from '@/lib/schedule';
 
-const HOUR_HEIGHT = 80;
+// En booking på 30 minutter får plass til tid, navn og behandling
+const HOUR_HEIGHT = 120;
 const PER_MINUTE = HOUR_HEIGHT / 60;
 const GUTTER = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;

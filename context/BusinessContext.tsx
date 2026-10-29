@@ -15,7 +15,7 @@ import {
 import { db } from '@/lib/firebase';
 import { shortId, slugify, toSalon, type LocationType, type Salon } from '@/lib/salons';
 import { toDateKey, type OpeningHours } from '@/lib/schedule';
-import type { Booking } from './BookingContext';
+import { cancelReasonField, type Booking } from './BookingContext';
 import { useAuth } from './AuthContext';
 
 const MODE_KEY = 'timeflyt:businessMode';
@@ -71,9 +71,9 @@ type BusinessContextType = {
   setBusinessMode: (enabled: boolean) => void;
   createBusiness: (input: NewBusiness) => Promise<string>;
   saveSalon: (changes: SalonChanges) => Promise<void>;
-  cancelAsSalon: (booking: Booking) => Promise<void>;
+  cancelAsSalon: (booking: Booking, reason: string) => Promise<void>;
   approveBooking: (booking: Booking) => Promise<void>;
-  declineBooking: (booking: Booking) => Promise<void>;
+  declineBooking: (booking: Booking, reason: string) => Promise<void>;
   setNoShow: (booking: Booking, noShow: boolean) => Promise<void>;
 };
 
@@ -243,10 +243,16 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     await batch.commit();
   };
 
-  const cancelAsSalon = (booking: Booking) =>
-    releaseBooking(booking, { status: 'cancelled', cancelledAt: serverTimestamp(), cancelledBy: 'salon' });
+  const cancelAsSalon = (booking: Booking, reason: string) =>
+    releaseBooking(booking, {
+      status: 'cancelled',
+      cancelledAt: serverTimestamp(),
+      cancelledBy: 'salon',
+      ...cancelReasonField(reason),
+    });
 
-  const declineBooking = (booking: Booking) => releaseBooking(booking, { status: 'declined' });
+  const declineBooking = (booking: Booking, reason: string) =>
+    releaseBooking(booking, { status: 'declined', ...cancelReasonField(reason) });
 
   const approveBooking = async (booking: Booking) => {
     if (!salon) throw new Error('Fant ikke bedriften.');

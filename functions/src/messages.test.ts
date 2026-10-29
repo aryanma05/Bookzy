@@ -21,6 +21,7 @@ function booking(overrides: Partial<BookingInfo> = {}): BookingInfo {
     date: '2026-10-10',
     time: '10:00',
     cancellableUntil: new Date('2026-10-09T08:00:00Z'),
+    cancelReason: '',
     ...overrides,
   };
 }
@@ -75,6 +76,16 @@ describe('varsler til salongen', () => {
     const push = messages.cancelledByCustomerPush(booking(), NOW);
     assert.equal(push.body, 'Kari N. har avbestilt Herreklipp i morgen kl 10:00. Tiden er ledig igjen.');
   });
+
+  test('avbestilling med begrunnelse', () => {
+    const cancelled = booking({ cancelReason: 'Jeg er syk' });
+    assert.equal(
+      messages.cancelledByCustomerPush(cancelled, NOW).body,
+      'Kari N. har avbestilt Herreklipp i morgen kl 10:00. Tiden er ledig igjen. «Jeg er syk»'
+    );
+    assert.match(messages.cancelledByCustomerEmail(cancelled, null).text, /Begrunnelse: Jeg er syk/);
+    assert.doesNotMatch(messages.cancelledByCustomerEmail(booking(), null).text, /Begrunnelse/);
+  });
 });
 
 describe('forespørsler', () => {
@@ -121,6 +132,13 @@ describe('forespørsler', () => {
       assert.doesNotMatch(text, /Thorvald Meyers|22000000|ring|kontakt/);
     }
   });
+
+  test('avslag med begrunnelse', () => {
+    const declined = booking({ cancelReason: 'Fullbooket den dagen' });
+    assert.match(messages.declinedPush(declined, NOW).body, /kl 10:00\. «Fullbooket den dagen»$/);
+    assert.match(messages.declinedEmail(declined, null).text, /Begrunnelse: Fullbooket den dagen/);
+    assert.match(messages.declinedSms(declined, null), /kl 10:00\. Begrunnelse: "Fullbooket den dagen"\.$/);
+  });
 });
 
 describe('sikkerhet', () => {
@@ -153,6 +171,19 @@ describe('til kunden', () => {
 
   test('uten telefonnummer til salongen', () => {
     assert.doesNotMatch(messages.cancelledBySalonEmail(booking({ salonPhone: '' }), null).text, /ringe/);
+  });
+
+  test('salongen avlyser med begrunnelse', () => {
+    const cancelled = booking({ cancelReason: 'Beklager, jeg er syk' });
+    assert.equal(
+      messages.cancelledBySalonPush(cancelled, NOW).body,
+      'Salong Nord har avlyst Herreklipp i morgen kl 10:00. «Beklager, jeg er syk»'
+    );
+    assert.match(messages.cancelledBySalonEmail(cancelled, null).text, /Begrunnelse: Beklager, jeg er syk/);
+    assert.equal(
+      messages.cancelledBySalonSms(cancelled, null),
+      'Salong Nord har avlyst Herreklipp lørdag 10. oktober kl 10:00. Begrunnelse: "Beklager, jeg er syk". Lurer du på noe, ring 22000000.'
+    );
   });
 });
 

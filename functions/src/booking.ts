@@ -60,6 +60,7 @@ export async function loadBooking(id: string, data: DocumentData, salonData?: Do
       date: isDateKey(data.date) ? data.date : osloDateKey(startAt),
       time: isTime(data.time) ? data.time : osloTime(startAt),
       cancellableUntil: data.cancellableUntil instanceof Timestamp ? data.cancellableUntil.toDate() : null,
+      cancelReason: clean(data.cancelReason, 200),
     },
   };
 }
