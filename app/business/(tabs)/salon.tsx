@@ -20,9 +20,8 @@ import { pushPermissionGranted, pushSupported, registerForPush } from '@/lib/pus
 import { toDateKey, WEEK } from '@/lib/schedule';
 
 /** E-post og push om nye bookinger og avbestillinger. */
-function NotificationSettings() {
+function NotificationSettings({ verification }: { verification: ReturnType<typeof useEmailVerification> }) {
   const { user, preferences, savePreferences } = useAuth();
-  const verification = useEmailVerification();
   const [pushAllowed, setPushAllowed] = useState(true);
 
   useFocusEffect(
@@ -92,6 +91,7 @@ export default function SalonSettingsScreen() {
   const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
   const { salon, saveSalon } = useBusiness();
+  const verification = useEmailVerification();
   const [publishing, setPublishing] = useState(false);
 
   if (!salon) return null;
@@ -99,7 +99,8 @@ export default function SalonSettingsScreen() {
   const openDays = WEEK.filter(({ key }) => salon.openingHours[key]).length;
   const today = toDateKey(new Date());
   const upcomingDaysOff = new Set(salon.closedDates.filter((key) => key >= today).map((key) => key.slice(0, 10))).size;
-  const canPublish = salon.services.length > 0 && openDays > 0;
+  // Uten bekreftet e-post får eieren ingen beskjed om bookinger på nettet, der det ikke finnes push
+  const canPublish = salon.services.length > 0 && openDays > 0 && verification.verified;
   const link = salonLink(salon.id);
 
   const setPublished = async (published: boolean) => {
@@ -171,6 +172,11 @@ export default function SalonSettingsScreen() {
               onPress={go(salon.services.length > 0 ? '/business/services' : '/business/service/new')}
             />
             <ChecklistItem done={openDays > 0} label="Sjekk åpningstidene" onPress={go('/business/hours')} />
+            <ChecklistItem
+              done={verification.verified}
+              label="Bekreft e-posten, så du får beskjed om bookinger"
+              onPress={verification.verified ? undefined : verification.send}
+            />
             <ChecklistItem
               done={salon.photos.length > 0}
               label="Legg inn bilder av arbeidet ditt"
@@ -259,7 +265,7 @@ export default function SalonSettingsScreen() {
         <ListRow icon="phone-portrait-outline" label="Kalender på telefonen" onPress={go('/business/calendar-link')} last />
       </SettingsSection>
 
-      <NotificationSettings />
+      <NotificationSettings verification={verification} />
 
       <SettingsSection title="Konto">
         <ListRow icon="log-out-outline" label="Logg ut" onPress={confirmSignOut} last />
