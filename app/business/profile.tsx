@@ -71,7 +71,8 @@ export default function BusinessProfileScreen() {
         value={description}
         onChangeText={setDescription}
         multiline
-        maxLength={1000}
+        maxLength={300}
+        hint="Vises under navnet på siden din og når du deler lenken."
       />
 
       <Text variant="heading" style={styles.heading}>Hvor</Text>

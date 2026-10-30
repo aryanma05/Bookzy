@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
+import { TextField } from '@/components/ui/text-field';
 import { colors, radius, shadows } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
 import { useEmailVerification } from '@/hooks/use-email-verification';
@@ -17,7 +18,7 @@ import { salonLink, shareBookingLink } from '@/lib/links';
 import { formatDuration, formatPrice } from '@/lib/salons';
 import { WEEK } from '@/lib/schedule';
 
-const STEPS = ['services', 'hours', 'photos', 'publish'] as const;
+const STEPS = ['services', 'hours', 'about', 'photos', 'publish'] as const;
 
 function Check({ done, label }: { done: boolean; label: string }) {
   return (
@@ -28,7 +29,7 @@ function Check({ done, label }: { done: boolean; label: string }) {
   );
 }
 
-/** Veileder nye bedrifter gjennom det som trengs før siden kan publiseres. Hvert steg åpner den vanlige skjermen og kommer tilbake hit. */
+/** Veileder nye bedrifter gjennom det som trengs før siden kan publiseres. De fleste stegene åpner den vanlige skjermen og kommer tilbake hit. */
 export default function SetupScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -37,6 +38,8 @@ export default function SetupScreen() {
   // Har de lagt inn tjenester før, fortsetter de der de slapp
   const [index, setIndex] = useState(() => (salon && salon.services.length > 0 ? 1 : 0));
   const [publishing, setPublishing] = useState(false);
+  const [description, setDescription] = useState(salon?.description ?? '');
+  const [savingDescription, setSavingDescription] = useState(false);
 
   if (!salon) return null;
 
@@ -47,6 +50,20 @@ export default function SetupScreen() {
   const next = () => {
     haptics.select();
     setIndex(index + 1);
+  };
+
+  const saveDescription = async () => {
+    if (description.trim() === salon.description) return next();
+    setSavingDescription(true);
+    try {
+      await saveSalon({ description });
+      next();
+    } catch (error) {
+      console.error('Kunne ikke lagre beskrivelsen:', error);
+      showAlert('Noe gikk galt', 'Kunne ikke lagre teksten. Sjekk nettet og prøv igjen.');
+    } finally {
+      setSavingDescription(false);
+    }
   };
 
   const publish = async () => {
@@ -148,6 +165,32 @@ export default function SetupScreen() {
         <Button title="Endre åpningstider" variant="outline" icon="create-outline" onPress={() => router.push('/business/hours')} />
       </>
     );
+  } else if (step === 'about') {
+    icon = 'chatbubble-ellipses-outline';
+    title = 'Fortell litt om deg';
+    text = 'Et par setninger om deg eller salongen. Kundene ser det under navnet på siden din og når du deler lenken.';
+    body = (
+      <TextField
+        placeholder="F.eks. Jeg har jobbet med negler i fem år og tar imot kunder hjemme på Grünerløkka."
+        value={description}
+        onChangeText={setDescription}
+        multiline
+        maxLength={300}
+        accessibilityLabel="Om deg eller salongen"
+      />
+    );
+    actions = (
+      <>
+        <Button
+          title="Neste"
+          icon="arrow-forward"
+          disabled={!description.trim()}
+          loading={savingDescription}
+          onPress={saveDescription}
+        />
+        {!description.trim() && <Button title="Hopp over for nå" variant="ghost" onPress={next} />}
+      </>
+    );
   } else if (step === 'photos') {
     icon = 'images-outline';
     title = 'Vis frem arbeidet ditt';
@@ -210,11 +253,14 @@ export default function SetupScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-        {index > 0 ? (
-          <IconButton icon="chevron-back" variant="soft" size={38} onPress={() => setIndex(index - 1)} accessibilityLabel="Forrige steg" />
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
+        <IconButton
+          icon="chevron-back"
+          variant="soft"
+          size={38}
+          // Før første steg ligger det de skrev da de registrerte bedriften, så de kan rette det der
+          onPress={() => (index > 0 ? setIndex(index - 1) : router.push('/business/profile'))}
+          accessibilityLabel={index > 0 ? 'Forrige steg' : 'Endre navn, kategori og adresse'}
+        />
         <View style={styles.progress} accessibilityLabel={`Steg ${index + 1} av ${STEPS.length}`}>
           {STEPS.map((item, i) => (
             <View key={item} style={[styles.segment, i <= index && styles.segmentDone]} />
@@ -244,7 +290,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 10 },
-  headerSpacer: { width: 38 },
   progress: { flex: 1, flexDirection: 'row', gap: 6 },
   segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border },
   segmentDone: { backgroundColor: colors.primary },

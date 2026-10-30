@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { launchImageLibraryAsync } from 'expo-image-picker';
+import { launchImageLibraryAsync, type ImagePickerAsset } from 'expo-image-picker';
 import { FormScreen } from '@/components/business/form-screen';
+import { PhotoEditor } from '@/components/business/photo-editor';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { IconButton } from '@/components/ui/icon-button';
@@ -12,15 +13,18 @@ import { colors, fonts, radius } from '@/constants/theme';
 import { useBusiness } from '@/context/BusinessContext';
 import { showAlert } from '@/lib/alert';
 import { haptics } from '@/lib/haptics';
-import { deleteSalonPhoto, MAX_PHOTOS, uploadSalonPhoto } from '@/lib/photos';
+import { deleteSalonPhoto, MAX_PHOTOS, uploadSalonPhoto, type PhotoEdit } from '@/lib/photos';
 
 type Upload = { done: number; total: number };
+/** Bildene eieren har valgt. skipped er de som ikke fikk plass. */
+type Picked = { assets: ImagePickerAsset[]; skipped: number };
 
 export default function PhotosScreen() {
   const router = useRouter();
   const { salon, saveSalon } = useBusiness();
   const [upload, setUpload] = useState<Upload | null>(null);
   const [saving, setSaving] = useState(false);
+  const [picked, setPicked] = useState<Picked | null>(null);
 
   if (!salon) return null;
 
@@ -51,13 +55,15 @@ export default function PhotosScreen() {
       selectionLimit: room,
     });
     if (result.canceled || result.assets.length === 0) return;
-    const assets = result.assets.slice(0, room);
+    setPicked({ assets: result.assets.slice(0, room), skipped: result.assets.length - room });
+  };
 
+  const uploadPhotos = async ({ assets, skipped }: Picked, edits: (PhotoEdit | null)[]) => {
     const uploaded: string[] = [];
     setUpload({ done: 0, total: assets.length });
     try {
-      for (const asset of assets) {
-        uploaded.push(await uploadSalonPhoto(salon.id, asset));
+      for (const [index, asset] of assets.entries()) {
+        uploaded.push(await uploadSalonPhoto(salon.id, asset, undefined, edits[index]));
         setUpload({ done: uploaded.length, total: assets.length });
       }
     } catch (error) {
@@ -73,7 +79,7 @@ export default function PhotosScreen() {
     if (uploaded.length > 0 && !(await save([...photos, ...uploaded]))) {
       uploaded.forEach((url) => deleteSalonPhoto(url).catch(() => {}));
     }
-    if (result.assets.length > room) {
+    if (skipped > 0) {
       showAlert('Noen bilder ble ikke lagt til', `Du kan ha opptil ${MAX_PHOTOS} bilder.`);
     }
   };
@@ -166,6 +172,16 @@ export default function PhotosScreen() {
               ))}
           </View>
         </>
+      )}
+      {picked && (
+        <PhotoEditor
+          assets={picked.assets}
+          onDone={(edits) => {
+            setPicked(null);
+            uploadPhotos(picked, edits);
+          }}
+          onCancel={() => setPicked(null)}
+        />
       )}
     </FormScreen>
   );

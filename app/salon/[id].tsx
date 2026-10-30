@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -113,7 +113,7 @@ function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
   const { reviews, loading: reviewsLoading } = useSalonReviews(salon.id, salon.reviewCount);
 
   const [tab, setTab] = useState<Tab>('services');
-  const [photoIndex, setPhotoIndex] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   const scrollY = useSharedValue(0);
@@ -157,23 +157,15 @@ function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
 
       <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
         <Animated.View style={[styles.gallery, imageStyle]}>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            scrollEventThrottle={32}
-            onScroll={(event) => setPhotoIndex(Math.round(event.nativeEvent.contentOffset.x / width))}
-          >
-            {photos.map((uri) => (
-              <Image key={uri} source={{ uri }} style={{ width, height: IMAGE_HEIGHT }} contentFit="cover" transition={250} />
-            ))}
-            {photos.length === 0 && <SalonPhoto salon={salon} style={{ width, height: IMAGE_HEIGHT }} iconSize={64} />}
-          </ScrollView>
-          {photos.length > 1 && (
-            <View style={styles.photoCounter}>
-              <Text style={styles.photoCounterText}>{photoIndex + 1} / {photos.length}</Text>
-            </View>
+          {photos.length > 0 ? (
+            <Pressable onPress={() => setGalleryOpen(true)} accessibilityRole="button" accessibilityLabel="Se bildene">
+              <Image source={{ uri: photos[0] }} style={{ width, height: IMAGE_HEIGHT }} contentFit="cover" transition={250} />
+            </Pressable>
+          ) : (
+            <SalonPhoto salon={salon} style={{ width, height: IMAGE_HEIGHT }} iconSize={64} />
           )}
+          {/* Over kanten av innholdet, som ligger litt inn over bildet */}
+          {photos.length > 1 && <AllPhotosButton count={photos.length} bottom={36} onPress={() => setGalleryOpen(true)} />}
         </Animated.View>
 
         <View style={styles.body}>
@@ -207,6 +199,8 @@ function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
           <FavoriteButton salonId={salon.id} size={40} />
         </View>
       </Animated.View>
+
+      <PhotoGallery photos={photos} visible={galleryOpen} onClose={() => setGalleryOpen(false)} />
     </View>
   );
 }
@@ -215,6 +209,7 @@ function SalonDetails({ salon, owner }: { salon: Salon; owner: boolean }) {
 function SalonPage({ salon, owner }: { salon: Salon; owner: boolean }) {
   const goBack = useGoBack(owner);
   const { reviews, loading: reviewsLoading } = useSalonReviews(salon.id, salon.reviewCount);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const photos = salon.photos;
 
   return (
@@ -232,21 +227,15 @@ function SalonPage({ salon, owner }: { salon: Salon; owner: boolean }) {
               style={styles.pageBack}
             />
           )}
-          <View style={styles.photoGrid}>
+          <View style={styles.cover}>
             {photos.length === 0 ? (
               <SalonPhoto salon={salon} style={styles.photoMain} iconSize={64} />
             ) : (
-              <>
-                <Image source={{ uri: photos[0] }} style={styles.photoMain} contentFit="cover" transition={250} />
-                {photos.length > 1 && (
-                  <View style={styles.photoSide}>
-                    {photos.slice(1, 3).map((uri) => (
-                      <Image key={uri} source={{ uri }} style={styles.photoSmall} contentFit="cover" transition={250} />
-                    ))}
-                  </View>
-                )}
-              </>
+              <Pressable style={styles.photoMain} onPress={() => setGalleryOpen(true)} accessibilityRole="button" accessibilityLabel="Se bildene">
+                <Image source={{ uri: photos[0] }} style={styles.photoFill} contentFit="cover" transition={250} />
+              </Pressable>
             )}
+            {photos.length > 1 && <AllPhotosButton count={photos.length} bottom={16} onPress={() => setGalleryOpen(true)} />}
             <View style={styles.photoFavorite}>
               <FavoriteButton salonId={salon.id} size={40} />
             </View>
@@ -266,7 +255,50 @@ function SalonPage({ salon, owner }: { salon: Salon; owner: boolean }) {
           </View>
         </View>
       </ScrollView>
+
+      <PhotoGallery photos={photos} visible={galleryOpen} onClose={() => setGalleryOpen(false)} />
     </View>
+  );
+}
+
+function AllPhotosButton({ count, bottom, onPress }: { count: number; bottom: number; onPress: () => void }) {
+  return (
+    <PressableScale style={[styles.allPhotos, { bottom }]} onPress={onPress} accessibilityRole="button">
+      <Ionicons name="images-outline" size={15} color="#FFFFFF" />
+      <Text style={styles.allPhotosText}>Se alle {count} bilder</Text>
+    </PressableScale>
+  );
+}
+
+/** Alle bildene salongen har lagt inn, under hverandre og uten å kutte noe. */
+function PhotoGallery({ photos, visible, onClose }: { photos: string[]; visible: boolean; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  // Formen på hvert bilde, så det vises helt. Er ikke bildet lastet ennå, gjetter vi liggende.
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={[styles.galleryScreen, { paddingTop: insets.top }]}>
+        <View style={styles.galleryHeader}>
+          <Text variant="subheading" color="#FFFFFF">{photos.length === 1 ? '1 bilde' : `${photos.length} bilder`}</Text>
+          <IconButton icon="close" accessibilityLabel="Lukk bildene" onPress={onClose} />
+        </View>
+        <ScrollView contentContainerStyle={[styles.galleryList, { paddingBottom: insets.bottom + 24 }]}>
+          {photos.map((uri) => (
+            <Image
+              key={uri}
+              source={{ uri }}
+              style={[styles.galleryPhoto, { aspectRatio: ratios[uri] ?? 4 / 3 }]}
+              contentFit="contain"
+              transition={200}
+              onLoad={({ source }) => {
+                if (source.width > 0 && source.height > 0) setRatios((current) => ({ ...current, [uri]: source.width / source.height }));
+              }}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -282,6 +314,9 @@ function SalonIntro({ salon, onRatingPress }: { salon: Salon; onRatingPress?: ()
         {salon.locationType === 'home' ? `${salon.category} · Hjemmesalong` : salon.category}
       </Text>
       <Text variant="title" style={styles.name}>{salon.name}</Text>
+      {salon.description ? (
+        <Text variant="body" color={colors.textSecondary} style={styles.description}>{salon.description}</Text>
+      ) : null}
 
       <PressableScale scaleTo={0.98} style={styles.metaRow} onPress={onRatingPress} disabled={!onRatingPress}>
         {salon.rating !== null ? (
@@ -404,8 +439,6 @@ function AboutSalon({ salon }: { salon: Salon }) {
 
   return (
     <View style={styles.about}>
-      {salon.description ? <Text variant="body">{salon.description}</Text> : null}
-
       <View style={styles.aboutBlock}>
         <Text variant="subheading">{salon.flexibleHours ? 'Tider' : 'Åpningstider'}</Text>
         {salon.flexibleHours && (
@@ -486,16 +519,28 @@ const styles = StyleSheet.create({
   center: { justifyContent: 'center' },
   loadingBody: { padding: 20, gap: 12 },
   gallery: { height: IMAGE_HEIGHT, backgroundColor: colors.divider },
-  photoCounter: {
+  allPhotos: {
     position: 'absolute',
     right: 16,
-    bottom: 36,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: radius.pill,
     backgroundColor: 'rgba(14, 26, 43, 0.6)',
   },
-  photoCounterText: { fontFamily: fonts.semibold, fontSize: 12, color: '#FFFFFF' },
+  allPhotosText: { fontFamily: fonts.semibold, fontSize: 13, color: '#FFFFFF' },
+  galleryScreen: { flex: 1, backgroundColor: colors.ink },
+  galleryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  galleryList: { gap: 12, paddingHorizontal: 12, width: '100%', maxWidth: 760, alignSelf: 'center' },
+  galleryPhoto: { width: '100%' },
   body: {
     marginTop: -22,
     paddingTop: 22,
@@ -507,6 +552,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   name: { marginBottom: 4 },
+  description: { marginBottom: 6 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   metaText: { flexShrink: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 4 },
@@ -558,10 +604,9 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.surface },
   pageInner: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 64 },
   pageBack: { alignSelf: 'flex-start', marginBottom: 12, marginLeft: -12 },
-  photoGrid: { flexDirection: 'row', gap: 8, height: 400, borderRadius: radius.xl, overflow: 'hidden' },
-  photoMain: { flex: 2, height: '100%', backgroundColor: colors.divider },
-  photoSide: { flex: 1, gap: 8 },
-  photoSmall: { flex: 1, backgroundColor: colors.divider },
+  cover: { height: 400, borderRadius: radius.xl, overflow: 'hidden' },
+  photoMain: { flex: 1, backgroundColor: colors.divider },
+  photoFill: { width: '100%', height: '100%' },
   photoFavorite: { position: 'absolute', top: 16, right: 16 },
   columns: { flexDirection: 'row', alignItems: 'flex-start', gap: 48, marginTop: 32 },
   mainColumn: { flex: 1, gap: 6 },

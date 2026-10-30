@@ -8,7 +8,7 @@ The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and th
 
 - Home screen with categories, upcoming appointment, "book again", favourites, nearby and popular salons
 - Search with category filters and sorting by rating, price or distance
-- Salon pages with photo gallery, services grouped by category, reviews, opening hours, staff and cancellation policy
+- Salon pages with the cover photo (tap it or *Se alle bilder* to see every photo in full), the salon's short description under the name, services grouped by category, reviews, opening hours, staff and cancellation policy
 - Booking flow: service → staff ("anyone" or a specific person) → date → time → confirmation
 - On the web, customers book without an account: name, mobile number and a code sent by SMS on the confirmation page. That's all someone who taps a booking link in an Instagram bio has to do
 - Real-time availability based on opening hours, service duration and existing bookings, with double-booking prevented on the server
@@ -24,6 +24,7 @@ The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and th
 Bookzy is built first and foremost for home-based salons, solo technicians and small businesses, with room to grow into larger salons. Business mode lives in the same app (Profile → *Bookzy for bedrifter*) and works on the web, so the salon can use it on a PC.
 
 - Register a business in one form: name, category (one of ours, or their own under *Annet*), home salon or salon/studio, area and contact info. The owner becomes the first person customers can book with, so a solo business doesn't need to set up staff at all
+- After registering, a guide takes the owner step by step through services, opening hours, a few sentences about themselves or the salon (shown under the name and in link previews), photos and publishing. The back button on the first step opens *Profil og kontaktinfo*, so mistakes from the registration can be fixed
 - Home salons can leave the address empty; customers then only see the area
 - *Godkjenn bookinger selv*: bookings become requests the salon approves or declines (Profil og kontaktinfo). The address is then kept in `salons/{id}/private/address`, which only the owner can read, and is copied onto the booking when it is approved, so customers only see it once they're approved. Declining frees the time. Pending requests are shown at the top of the calendar. The salon gets a push notification and email for new and withdrawn requests. The customer gets an email when the request is sent (without the address), and a push notification and email (or SMS) when it's approved, with the address, or declined. The reminder is set up when the request is approved
 - The salon can write its own terms (*Vilkår*), which customers must accept before they can book
@@ -34,7 +35,7 @@ Bookzy is built first and foremost for home-based salons, solo technicians and s
 - Services (name, group, duration, price, description and an optional thumbnail), staff, opening hours, days off and holidays for the whole salon or one person, cancellation deadline and profile. The duration is set in quarters with + and –, or typed in minutes. Bookings still start every half hour and take whole half hours in the calendar, so a 50-minute service holds an hour; the form says so
 - Breaks: each open day can have one or more breaks (lunch, picking up the kids). Customers can't book a time that runs into a break, the salon page lists them under the opening hours, and the calendar shows them in grey
 - *Fleksibel salong*: a home salon can hide its opening hours. Customers then only see free times. The weekly hours still decide when they can book, so nobody books in the middle of the night
-- Up to 8 cover photos (*Forsidebilder*), picked from the phone or PC. They are shrunk before upload (max 1600 px, JPEG), and the owner chooses the cover, which is shown first on the salon page and in search. Without photos the salon shows its category icon
+- Up to 8 cover photos (*Forsidebilder*), picked from the phone or PC. They are shrunk before upload (max 1600 px, JPEG), and the owner chooses the cover, which is shown first on the salon page and in search. Without photos the salon shows its category icon. Before upload each photo opens in a simple crop screen: drag it in the frame, zoom with – and +, rotate a quarter turn and pick the original shape, landscape (4:3) or square. Untouched photos are uploaded as they are. Uploaded photos can't be cropped again, because Storage doesn't let the browser read them back (no CORS on the bucket)
 - Push notification and email when someone books, moves or cancels. Email can be turned off under *Salongen → Varsler*
 
 ## Getting started
