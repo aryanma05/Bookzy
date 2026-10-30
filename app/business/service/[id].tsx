@@ -25,14 +25,17 @@ const MAX_DURATION = 8 * 60;
 
 export default function EditServiceScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string; addOn?: string }>();
   const { salon, saveSalon } = useBusiness();
-  const isNew = id === 'new';
-  const existing = salon?.services.find((service) => service.id === id);
+  const isNew = params.id === 'new';
+  const existing = salon?.services.find((service) => service.id === params.id);
+  const addOn = existing ? existing.addOn === true : params.addOn === '1';
+  // Et tillegg kan ta null ekstra minutter, f.eks. French på neglene
+  const minDuration = addOn ? 0 : MIN_DURATION;
 
   const [name, setName] = useState(existing?.name ?? '');
   const [category, setCategory] = useState(existing?.category ?? '');
-  const [durationMin, setDurationMin] = useState(existing?.durationMin ?? 60);
+  const [durationMin, setDurationMin] = useState(existing?.durationMin ?? (addOn ? 15 : 60));
   // Det eieren skriver i minuttfeltet, til +/– brukes igjen. Kan være tomt mens de skriver.
   const [minutesInput, setMinutesInput] = useState<string | null>(null);
   const [price, setPrice] = useState(existing ? String(existing.priceNok) : '');
@@ -81,8 +84,8 @@ export default function EditServiceScreen() {
       setError('Gi tjenesten et navn.');
       return;
     }
-    if (minutesInput === '' || durationMin < MIN_DURATION || durationMin > MAX_DURATION) {
-      setError(`Varigheten må være mellom ${MIN_DURATION} minutter og ${formatDuration(MAX_DURATION)}.`);
+    if (minutesInput === '' || durationMin < minDuration || durationMin > MAX_DURATION) {
+      setError(`Varigheten må være mellom ${minDuration} minutter og ${formatDuration(MAX_DURATION)}.`);
       return;
     }
     if (!price) {
@@ -94,11 +97,13 @@ export default function EditServiceScreen() {
     const service: Service = {
       id: existing?.id ?? shortId(),
       name: name.trim(),
-      category: category.trim() || 'Behandlinger',
+      // Tilleggene vises ikke i gruppene på siden, men samlet i prislisten
+      category: addOn ? 'Tillegg' : category.trim() || 'Behandlinger',
       durationMin,
       priceNok: Number(price),
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(imageUrl ? { imageUrl } : {}),
+      ...(addOn ? { addOn: true } : {}),
     };
     try {
       await saveSalon({
@@ -120,12 +125,12 @@ export default function EditServiceScreen() {
 
   const remove = () => {
     if (!existing) return;
-    const isLast = salon.services.length === 1 && salon.published;
+    const isLast = !addOn && salon.services.filter((item) => !item.addOn).length === 1 && salon.published;
     showAlert(
       `Slette ${existing.name}?`,
       isLast
         ? 'Dette er den eneste tjenesten din, så kundene kan ikke booke noe før du legger til en ny. Timer som er booket, påvirkes ikke.'
-        : 'Kundene kan ikke lenger booke den. Timer som allerede er booket, påvirkes ikke.',
+        : `Kundene kan ikke lenger ${addOn ? 'legge den til' : 'booke den'}. Timer som allerede er booket, påvirkes ikke.`,
       [
         { text: 'Avbryt', style: 'cancel' },
         {
@@ -148,7 +153,7 @@ export default function EditServiceScreen() {
 
   return (
     <FormScreen
-      title={isNew ? 'Ny tjeneste' : 'Endre tjeneste'}
+      title={`${isNew ? 'Ny' : 'Endre'} ${addOn ? 'tilleggstjeneste' : 'tjeneste'}`}
       backTo="/business/services"
       footer={
         <>
@@ -157,53 +162,71 @@ export default function EditServiceScreen() {
         </>
       }
     >
-      <TextField label="Navn" placeholder="F.eks. Gelénegler" value={name} onChangeText={setName} maxLength={60} />
+      {addOn && (
+        <Text variant="body" color={colors.textSecondary}>
+          Kundene kan legge dette til når de booker en av de andre tjenestene dine. Tiden og prisen legges til timen.
+        </Text>
+      )}
 
-      <FieldGroup label="Bilde (valgfritt)" hint="Vises ved siden av tjenesten på siden din.">
-        <View style={styles.imageRow}>
-          <View style={styles.thumbnail}>
-            {uploading ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : imageUrl ? (
-              <Image source={{ uri: imageUrl }} style={styles.thumbnailImage} contentFit="cover" transition={200} />
-            ) : (
-              <Ionicons name="image-outline" size={26} color={colors.textMuted} />
-            )}
-          </View>
-          <Button
-            title={imageUrl ? 'Bytt bilde' : 'Velg bilde'}
-            variant="secondary"
-            size="sm"
-            icon="image-outline"
-            disabled={uploading}
-            onPress={pickImage}
-          />
-          {imageUrl && !uploading && <Button title="Fjern" variant="ghost" size="sm" onPress={() => setImageUrl(null)} />}
-        </View>
-      </FieldGroup>
+      <TextField
+        label="Navn"
+        placeholder={addOn ? 'F.eks. Fjerning av gammel gelé' : 'F.eks. Gelénegler'}
+        value={name}
+        onChangeText={setName}
+        maxLength={60}
+      />
 
-      <FieldGroup label="Gruppe" hint="Tjenestene vises samlet i grupper på siden din.">
-        <TextField placeholder="F.eks. Manikyr" value={category} onChangeText={setCategory} maxLength={40} />
-        {suggestions.length > 0 && (
-          <View style={styles.chips}>
-            {suggestions.map((suggestion) => (
-              <Chip
-                key={suggestion}
-                label={suggestion}
-                selected={suggestion === category.trim()}
-                onPress={() => setCategory(suggestion)}
+      {!addOn && (
+        <>
+          <FieldGroup label="Bilde (valgfritt)" hint="Vises ved siden av tjenesten på siden din.">
+            <View style={styles.imageRow}>
+              <View style={styles.thumbnail}>
+                {uploading ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : imageUrl ? (
+                  <Image source={{ uri: imageUrl }} style={styles.thumbnailImage} contentFit="cover" transition={200} />
+                ) : (
+                  <Ionicons name="image-outline" size={26} color={colors.textMuted} />
+                )}
+              </View>
+              <Button
+                title={imageUrl ? 'Bytt bilde' : 'Velg bilde'}
+                variant="secondary"
+                size="sm"
+                icon="image-outline"
+                disabled={uploading}
+                onPress={pickImage}
               />
-            ))}
-          </View>
-        )}
-      </FieldGroup>
+              {imageUrl && !uploading && <Button title="Fjern" variant="ghost" size="sm" onPress={() => setImageUrl(null)} />}
+            </View>
+          </FieldGroup>
+
+          <FieldGroup label="Gruppe" hint="Tjenestene vises samlet i grupper på siden din.">
+            <TextField placeholder="F.eks. Manikyr" value={category} onChangeText={setCategory} maxLength={40} />
+            {suggestions.length > 0 && (
+              <View style={styles.chips}>
+                {suggestions.map((suggestion) => (
+                  <Chip
+                    key={suggestion}
+                    label={suggestion}
+                    selected={suggestion === category.trim()}
+                    onPress={() => setCategory(suggestion)}
+                  />
+                ))}
+              </View>
+            )}
+          </FieldGroup>
+        </>
+      )}
 
       <FieldGroup
-        label="Varighet"
+        label={addOn ? 'Ekstra tid' : 'Varighet'}
         hint={
-          blockedMin !== durationMin
-            ? `Kundene kan booke hver halve time, så ${formatDuration(durationMin)} holder av ${formatDuration(blockedMin)} i kalenderen.`
-            : 'Bruk + og – for et kvarter av gangen, eller skriv inn antall minutter.'
+          addOn
+            ? 'Legges til tiden kunden booker. Velg 0 min hvis det ikke tar lenger tid.'
+            : blockedMin !== durationMin
+              ? `Kundene kan booke hver halve time, så ${formatDuration(durationMin)} holder av ${formatDuration(blockedMin)} i kalenderen.`
+              : 'Bruk + og – for et kvarter av gangen, eller skriv inn antall minutter.'
         }
       >
         <Stepper
@@ -213,7 +236,7 @@ export default function EditServiceScreen() {
             setMinutesInput(null);
           }}
           step={15}
-          min={15}
+          min={addOn ? 0 : 15}
           max={MAX_DURATION}
           format={formatDuration}
         />

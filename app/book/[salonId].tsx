@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateStrip, StaffPicker, TimeGrid } from '@/components/booking-pickers';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,8 @@ import { useSalons } from '@/context/SalonsContext';
 import { useNow } from '@/hooks/use-now';
 import { useTakenSlots } from '@/hooks/use-taken-slots';
 import { smsSignInSupported } from '@/lib/auth';
-import { formatDuration, formatPrice } from '@/lib/salons';
+import { haptics } from '@/lib/haptics';
+import { formatDuration, formatPrice, withAddOns } from '@/lib/salons';
 import {
   addDays,
   formatDay,
@@ -33,7 +35,14 @@ const DAYS_AHEAD = 28;
 export default function ChooseTimeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ salonId: string; serviceId: string; staffId?: string; replaces?: string }>();
+  const params = useLocalSearchParams<{
+    salonId: string;
+    serviceId: string;
+    staffId?: string;
+    replaces?: string;
+    /** Kommaseparert. Satt når kunden flytter eller booker igjen en time med tillegg. */
+    addOnIds?: string;
+  }>();
   const now = useNow();
   const { user } = useAuth();
   const { bookings } = useBookings();
@@ -46,6 +55,7 @@ export default function ChooseTimeScreen() {
   const replacing = params.replaces ? bookings.find((booking) => booking.id === params.replaces) : undefined;
 
   const [staffId, setStaffId] = useState<string | null>(params.staffId || null);
+  const [addOnIds, setAddOnIds] = useState(() => params.addOnIds?.split(',').filter(Boolean) ?? []);
   const [chosenDate, setChosenDate] = useState<string | null>(null);
   const [chosenTime, setChosenTime] = useState<string | null>(null);
 
@@ -77,6 +87,10 @@ export default function ChooseTimeScreen() {
     );
   }
 
+  const addOns = salon.services.filter((item) => item.addOn);
+  // Tillegg salongen har slettet siden timen ble booket, faller bort
+  const chosenAddOns = addOns.filter((item) => addOnIds.includes(item.id));
+  const total = withAddOns(service, chosenAddOns);
   const staffIds = staffId ? [staffId] : salon.staff.map((member) => member.id);
   const available =
     taken !== null
@@ -84,7 +98,7 @@ export default function ChooseTimeScreen() {
           openingHours: salon.openingHours,
           closedDates: salon.closedDates,
           date,
-          durationMin: service.durationMin,
+          durationMin: total.durationMin,
           staffIds,
           taken,
           now,
@@ -117,8 +131,14 @@ export default function ChooseTimeScreen() {
         date: dateKey,
         time,
         ...(replacing ? { replaces: replacing.id } : {}),
+        ...(chosenAddOns.length > 0 ? { addOnIds: chosenAddOns.map((item) => item.id).join(',') } : {}),
       },
     });
+  };
+
+  const toggleAddOn = (id: string) => {
+    haptics.select();
+    setAddOnIds(addOnIds.includes(id) ? addOnIds.filter((item) => item !== id) : [...addOnIds, id]);
   };
 
   return (
@@ -133,6 +153,39 @@ export default function ChooseTimeScreen() {
           </View>
           {!replacing && <Button title="Endre" size="sm" variant="ghost" onPress={() => router.back()} />}
         </View>
+
+        {addOns.length > 0 && (
+          <View style={styles.section}>
+            <Text variant="heading" style={styles.sectionTitle}>Vil du legge til noe?</Text>
+            <View style={styles.addOns}>
+              {addOns.map((addOn, index) => {
+                const checked = addOnIds.includes(addOn.id);
+                return (
+                  <Pressable
+                    key={addOn.id}
+                    onPress={() => toggleAddOn(addOn.id)}
+                    style={[styles.addOn, index > 0 && styles.addOnDivider]}
+                    accessibilityRole="checkbox"
+                    // accessibilityState når ikke frem på nettet, aria-checked virker begge steder
+                    aria-checked={checked}
+                  >
+                    <Ionicons name={checked ? 'checkbox' : 'square-outline'} size={22} color={colors.primary} />
+                    <View style={styles.serviceText}>
+                      <Text variant="bodyStrong">{addOn.name}</Text>
+                      {addOn.description ? <Text variant="caption">{addOn.description}</Text> : null}
+                    </View>
+                    <View style={styles.addOnPrice}>
+                      <Text variant="label">+{formatPrice(addOn.priceNok)}</Text>
+                      {addOn.durationMin > 0 && (
+                        <Text variant="caption" color={colors.textMuted}>+{formatDuration(addOn.durationMin)}</Text>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {salon.staff.length > 1 && (
           <View style={styles.section}>
@@ -196,7 +249,7 @@ export default function ChooseTimeScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
         <View style={styles.footerText}>
           <Text variant="label">{time ? `${formatDay(date, now)} kl ${time}` : 'Velg et tidspunkt'}</Text>
-          <Text variant="caption">{formatPrice(service.priceNok)} · betales i salongen</Text>
+          <Text variant="caption">{formatPrice(total.priceNok)} · betales i salongen</Text>
         </View>
         <Button title={user || smsSignInSupported ? 'Fortsett' : 'Logg inn'} disabled={!time} onPress={proceed} style={styles.footerButton} />
       </View>
@@ -219,6 +272,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   serviceText: { flex: 1, gap: 2 },
+  addOns: {
+    marginHorizontal: 20,
+    paddingHorizontal: 16,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addOn: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  addOnDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  addOnPrice: { alignItems: 'flex-end' },
   section: { marginTop: 26 },
   sectionTitle: { paddingHorizontal: 20, marginBottom: 14 },
   times: { paddingHorizontal: 20, gap: 16 },

@@ -19,7 +19,7 @@ import { showAlert } from '@/lib/alert';
 import { sendSmsCode, smsSignInSupported } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
 import { formatPhone, toE164 } from '@/lib/phone';
-import { displayAddress, formatCancellationPolicy, formatDuration, formatPrice } from '@/lib/salons';
+import { displayAddress, formatCancellationPolicy, formatDuration, formatPrice, withAddOns } from '@/lib/salons';
 import { formatDay, formatShortDate, fromDateKey, REQUEST_LEAD_HOURS, toMinutes, toStartDate, toTime } from '@/lib/schedule';
 
 function DetailRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
@@ -45,6 +45,7 @@ export default function ConfirmBookingScreen() {
     date: string;
     time: string;
     replaces?: string;
+    addOnIds?: string;
   }>();
   const { user, profile, displayName, saveProfile, confirmSmsCode } = useAuth();
   const { bookings, createBooking } = useBookings();
@@ -53,6 +54,8 @@ export default function ConfirmBookingScreen() {
   const salon = getSalon(params.salonId);
   const service = salon?.services.find((item) => item.id === params.serviceId);
   const staff = salon?.staff.find((member) => member.id === params.staffId);
+  const addOnIds = params.addOnIds?.split(',') ?? [];
+  const addOns = salon?.services.filter((item) => item.addOn && addOnIds.includes(item.id)) ?? [];
   const replacing = params.replaces ? bookings.find((booking) => booking.id === params.replaces) : undefined;
 
   const [nameInput, setNameInput] = useState<string | null>(null);
@@ -80,7 +83,8 @@ export default function ConfirmBookingScreen() {
   }
 
   const date = fromDateKey(params.date);
-  const endTime = toTime(toMinutes(params.time) + service.durationMin);
+  const total = withAddOns(service, addOns);
+  const endTime = toTime(toMinutes(params.time) + total.durationMin);
   const startAt = toStartDate(params.date, params.time);
   const pastDeadline = startAt.getTime() - salon.cancellationHours * 60 * 60 * 1000 <= now.getTime();
 
@@ -118,6 +122,7 @@ export default function ConfirmBookingScreen() {
       const bookingId = await createBooking({
         salon,
         service,
+        addOns,
         staffId: staff?.id ?? null,
         date: params.date,
         time: params.time,
@@ -176,9 +181,9 @@ export default function ConfirmBookingScreen() {
 
           <View style={styles.card}>
             <DetailRow icon="calendar-outline" label="Tid" value={`${formatDay(date, now)}, ${params.time}–${endTime}`} />
-            <DetailRow icon="cut-outline" label="Behandling" value={`${service.name} (${formatDuration(service.durationMin)})`} />
+            <DetailRow icon="cut-outline" label="Behandling" value={`${total.name} (${formatDuration(total.durationMin)})`} />
             <DetailRow icon="person-outline" label="Hos" value={staff ? staff.name : 'Første ledige'} />
-            <DetailRow icon="card-outline" label="Pris" value={`${formatPrice(service.priceNok)} · betales i salongen`} />
+            <DetailRow icon="card-outline" label="Pris" value={`${formatPrice(total.priceNok)} · betales i salongen`} />
           </View>
 
           <View style={styles.fields}>
@@ -326,7 +331,7 @@ export default function ConfirmBookingScreen() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
         <View style={styles.total}>
           <Text variant="caption">Totalt</Text>
-          <Text variant="heading">{formatPrice(service.priceNok)}</Text>
+          <Text variant="heading">{formatPrice(total.priceNok)}</Text>
         </View>
         <Button
           title={

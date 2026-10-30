@@ -364,50 +364,109 @@ function ServiceList({ salon }: { salon: Salon }) {
   const [category, setCategory] = useState<string | null>(null);
   const book = (serviceId: string) => router.push({ pathname: '/book/[salonId]', params: { salonId: salon.id, serviceId } });
 
-  if (salon.services.length === 0) {
+  // Tilleggene bookes ikke alene. Kunden velger dem etter at tjenesten er valgt.
+  const services = salon.services.filter((service) => !service.addOn);
+  const addOns = salon.services.filter((service) => service.addOn);
+
+  if (services.length === 0) {
     return <EmptyState icon="list-outline" title="Ingen tjenester ennå" message="Salongen har ikke lagt inn tjenester." />;
   }
 
-  const groups = groupServices(salon.services);
+  const groups = groupServices(services);
+  // Som meny vises én gruppe om gangen, så der er alltid én valgt
+  const menu = salon.serviceMenu && groups.length > 1;
   // Kategorien kan forsvinne hvis salongen endrer tjenestene mens siden er åpen
-  const selected = groups.some((group) => group.category === category) ? category : null;
+  const selected = groups.some((group) => group.category === category) ? category : menu ? groups[0].category : null;
 
   return (
     <>
-      {groups.length > 1 && (
-        <View style={styles.categoryChips}>
+      {menu ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.menu} contentContainerStyle={styles.menuTabs}>
           {groups.map((group) => (
             <Chip
               key={group.category}
               label={capitalize(group.category)}
               selected={group.category === selected}
-              onPress={() => setCategory(group.category === selected ? null : group.category)}
+              onPress={() => setCategory(group.category)}
             />
           ))}
-        </View>
+        </ScrollView>
+      ) : (
+        groups.length > 1 && (
+          <View style={styles.categoryChips}>
+            {groups.map((group) => (
+              <Chip
+                key={group.category}
+                label={capitalize(group.category)}
+                selected={group.category === selected}
+                onPress={() => setCategory(group.category === selected ? null : group.category)}
+              />
+            ))}
+          </View>
+        )
       )}
       {groups.filter((group) => !selected || group.category === selected).map((group) => (
         <View key={group.category} style={styles.serviceGroup}>
-          <Text variant="heading">{capitalize(group.category)}</Text>
+          {!menu && <Text variant="heading">{capitalize(group.category)}</Text>}
           <View style={styles.serviceCard}>
-            {group.services.map((service, index) => (
-              <View key={service.id} style={[styles.service, index < group.services.length - 1 && styles.serviceDivider]}>
-                {service.imageUrl ? (
-                  <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} contentFit="cover" transition={200} />
-                ) : null}
-                <View style={styles.serviceText}>
-                  <Text variant="bodyStrong">{service.name}</Text>
-                  {service.description ? <Text variant="caption">{service.description}</Text> : null}
-                  <Text variant="caption" color={colors.textMuted}>
-                    {formatDuration(service.durationMin)} · {formatPrice(service.priceNok)}
-                  </Text>
+            {group.services.map((service, index) => {
+              const divider = index < group.services.length - 1 && styles.serviceDivider;
+              // Menyen er kompakt: hele raden er knappen
+              return menu ? (
+                <Pressable
+                  key={service.id}
+                  onPress={() => book(service.id)}
+                  style={({ pressed }) => [styles.service, divider, pressed && styles.servicePressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Book ${service.name}, ${formatDuration(service.durationMin)}, ${formatPrice(service.priceNok)}`}
+                >
+                  <View style={styles.serviceText}>
+                    <Text variant="bodyStrong">{service.name}</Text>
+                    {service.description ? <Text variant="caption" numberOfLines={2}>{service.description}</Text> : null}
+                    <Text variant="caption" color={colors.textMuted}>{formatDuration(service.durationMin)}</Text>
+                  </View>
+                  <Text variant="label">{formatPrice(service.priceNok)}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </Pressable>
+              ) : (
+                <View key={service.id} style={[styles.service, divider]}>
+                  {service.imageUrl ? (
+                    <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} contentFit="cover" transition={200} />
+                  ) : null}
+                  <View style={styles.serviceText}>
+                    <Text variant="bodyStrong">{service.name}</Text>
+                    {service.description ? <Text variant="caption">{service.description}</Text> : null}
+                    <Text variant="caption" color={colors.textMuted}>
+                      {formatDuration(service.durationMin)} · {formatPrice(service.priceNok)}
+                    </Text>
+                  </View>
+                  <Button title="Book" size="sm" onPress={() => book(service.id)} />
                 </View>
-                <Button title="Book" size="sm" onPress={() => book(service.id)} />
+              );
+            })}
+          </View>
+        </View>
+      ))}
+      {addOns.length > 0 && (
+        <View style={styles.serviceGroup}>
+          <Text variant="heading">Tillegg</Text>
+          <Text variant="caption">Kan legges til når du booker en tjeneste.</Text>
+          <View style={styles.serviceCard}>
+            {addOns.map((addOn, index) => (
+              <View key={addOn.id} style={[styles.service, index < addOns.length - 1 && styles.serviceDivider]}>
+                <View style={styles.serviceText}>
+                  <Text variant="bodyStrong">{addOn.name}</Text>
+                  {addOn.description ? <Text variant="caption">{addOn.description}</Text> : null}
+                  {addOn.durationMin > 0 && (
+                    <Text variant="caption" color={colors.textMuted}>+{formatDuration(addOn.durationMin)}</Text>
+                  )}
+                </View>
+                <Text variant="label">+{formatPrice(addOn.priceNok)}</Text>
               </View>
             ))}
           </View>
         </View>
-      ))}
+      )}
     </>
   );
 }
@@ -575,6 +634,10 @@ const styles = StyleSheet.create({
   },
   tabContent: { marginTop: 18 },
   categoryChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  // Til kanten av skjermen, så det synes at menyen kan skrolles sidelengs
+  menu: { flexGrow: 0, marginHorizontal: -20, marginBottom: 16 },
+  menuTabs: { gap: 8, paddingHorizontal: 20 },
+  servicePressed: { opacity: 0.6 },
   serviceGroup: { marginBottom: 24, gap: 10 },
   serviceCard: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, paddingHorizontal: 16 },
   service: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },

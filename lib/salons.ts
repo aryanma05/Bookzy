@@ -11,6 +11,8 @@ export type Service = {
   description?: string;
   /** Småbilde av tjenesten, lastet opp av eieren. */
   imageUrl?: string;
+  /** Tilleggstjeneste: bookes ikke alene, men kan legges til en annen tjeneste. Tid og pris legges til timen. */
+  addOn?: boolean;
 };
 
 export type StaffMember = {
@@ -54,6 +56,8 @@ export type Salon = {
   terms: string;
   /** Eieren godkjenner hver booking selv. Kunden får adressen først når timen er godkjent. */
   requiresApproval: boolean;
+  /** Tjenestene vises som en meny: kunden blar mellom gruppene i stedet for å se alt i én lang liste. */
+  serviceMenu: boolean;
 };
 
 export function unsplash(photoId: string, width = 800) {
@@ -133,6 +137,7 @@ export function toSalon(id: string, data: DocumentData): Salon {
           ...service,
           category: service.category ?? 'Behandlinger',
           imageUrl: typeof service.imageUrl === 'string' ? service.imageUrl : undefined,
+          addOn: service.addOn === true ? true : undefined,
         }))
       : [],
     staff: staff.map((member) => ({ ...member, title: member.title ?? '' })),
@@ -144,6 +149,7 @@ export function toSalon(id: string, data: DocumentData): Salon {
     published: data.published !== false,
     terms: typeof data.terms === 'string' ? data.terms : '',
     requiresApproval: data.requiresApproval === true,
+    serviceMenu: data.serviceMenu === true,
   };
 }
 
@@ -180,9 +186,19 @@ export function groupServices(services: Service[]): { category: string; services
   return [...groups].map(([category, list]) => ({ category, services: list }));
 }
 
+/** Hele timen når kunden har lagt til tilleggstjenester: navnene etter hverandre, og tid og pris lagt sammen. */
+export function withAddOns(service: Service, addOns: Service[]) {
+  return {
+    name: [service, ...addOns].map((item) => item.name).join(' + '),
+    durationMin: addOns.reduce((sum, item) => sum + item.durationMin, service.durationMin),
+    priceNok: addOns.reduce((sum, item) => sum + item.priceNok, service.priceNok),
+  };
+}
+
 export function lowestPrice(salon: Salon): number | null {
-  if (salon.services.length === 0) return null;
-  return Math.min(...salon.services.map((service) => service.priceNok));
+  // Tilleggene kan ikke bookes alene, så de teller ikke som «fra»-pris
+  const prices = salon.services.filter((service) => !service.addOn).map((service) => service.priceNok);
+  return prices.length > 0 ? Math.min(...prices) : null;
 }
 
 export function formatPrice(priceNok: number): string {

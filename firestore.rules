@@ -36,7 +36,7 @@ service cloud.firestore {
       return [
         'name', 'category', 'description', 'address', 'area', 'phone', 'locationType',
         'services', 'staff', 'openingHours', 'flexibleHours', 'closedDates', 'cancellationHours', 'published', 'photos',
-        'terms', 'requiresApproval', 'updatedAt'
+        'terms', 'requiresApproval', 'serviceMenu', 'updatedAt'
       ];
     }
 
@@ -73,6 +73,7 @@ service cloud.firestore {
         && validPhotos(data.get('photos', []))
         && data.get('terms', '') is string && data.get('terms', '').size() <= 2000
         && data.get('requiresApproval', false) is bool
+        && data.get('serviceMenu', false) is bool
         // Godkjenner salongen bookingene selv, ligger adressen i private/address og kommer først på den godkjente timen
         && (data.get('requiresApproval', false) == false || data.address == '')
         && data.updatedAt == request.time;
@@ -161,8 +162,11 @@ service cloud.firestore {
           'userId', 'customerName', 'customerPhone', 'note',
           'salonId', 'salonName', 'serviceId', 'serviceName', 'staffId', 'staffName',
           'durationMin', 'priceNok', 'date', 'time', 'startAt', 'endAt', 'cancellableUntil',
-          'slotIds', 'status', 'createdAt', 'replacesBookingId'
+          'slotIds', 'status', 'createdAt', 'replacesBookingId', 'addOnIds'
         ])
+        // Tilleggstjenestene kunden valgte. Varslene henter navnene fra salongen.
+        && (!('addOnIds' in request.resource.data)
+          || (request.resource.data.addOnIds is list && request.resource.data.addOnIds.size() <= 5))
         && request.resource.data.userId == request.auth.uid
         // Skjulte salonger tar ikke imot nye bookinger, men eieren kan prøve sin egen side
         && (get(salonPath(request.resource.data.salonId)).data.get('published', true) == true

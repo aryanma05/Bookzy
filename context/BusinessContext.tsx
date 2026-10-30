@@ -47,6 +47,7 @@ export type SalonChanges = Partial<
     | 'photos'
     | 'terms'
     | 'requiresApproval'
+    | 'serviceMenu'
   >
 >;
 
@@ -102,7 +103,7 @@ function editableData(salon: Salon, changes: SalonChanges) {
     area: next.area.trim(),
     phone: (next.phone ?? '').trim(),
     locationType: next.locationType,
-    services: next.services.map(({ id, name, category, durationMin, priceNok, description, imageUrl }) => ({
+    services: next.services.map(({ id, name, category, durationMin, priceNok, description, imageUrl, addOn }) => ({
       id,
       name,
       category,
@@ -110,6 +111,7 @@ function editableData(salon: Salon, changes: SalonChanges) {
       priceNok,
       ...(description ? { description } : {}),
       ...(imageUrl ? { imageUrl } : {}),
+      ...(addOn ? { addOn } : {}),
     })),
     staff: next.staff.map(({ id, name, title }) => ({ id, name, title })),
     openingHours: next.openingHours,
@@ -122,6 +124,7 @@ function editableData(salon: Salon, changes: SalonChanges) {
     photos: next.photos,
     ...('terms' in changes || salon.terms ? { terms: next.terms.trim() } : {}),
     ...('requiresApproval' in changes || salon.requiresApproval ? { requiresApproval: next.requiresApproval } : {}),
+    ...('serviceMenu' in changes || salon.serviceMenu ? { serviceMenu: next.serviceMenu } : {}),
     updatedAt: serverTimestamp(),
   };
 }

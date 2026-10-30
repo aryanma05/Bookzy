@@ -16,7 +16,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { registerForPush } from '@/lib/push';
 import { isDayOff, slotId, slotTimesFor, toStartDate } from '@/lib/schedule';
-import type { Salon, Service } from '@/lib/salons';
+import { withAddOns, type Salon, type Service } from '@/lib/salons';
 import { useAuth } from './AuthContext';
 
 /** `pending` venter på at salongen godkjenner, `declined` ble avslått av salongen. */
@@ -30,7 +30,10 @@ export type Booking = {
   salonId: string;
   salonName: string;
   serviceId: string;
+  /** Med tilleggene, f.eks. «Vippeløft + Brynsfarge». */
   serviceName: string;
+  /** Tilleggstjenestene kunden valgte. Tid og pris er med i durationMin og priceNok. */
+  addOnIds: string[];
   staffId: string;
   staffName: string;
   durationMin: number;
@@ -55,6 +58,7 @@ export type Booking = {
 export type NewBooking = {
   salon: Salon;
   service: Service;
+  addOns: Service[];
   /** null = første ledige ansatt */
   staffId: string | null;
   date: string;
@@ -91,6 +95,7 @@ export function toBooking(id: string, data: DocumentData): Booking {
     salonName: data.salonName,
     serviceId: data.serviceId ?? '',
     serviceName: data.serviceName,
+    addOnIds: Array.isArray(data.addOnIds) ? data.addOnIds.filter((id: unknown) => typeof id === 'string') : [],
     staffId: data.staffId ?? '',
     staffName: data.staffName ?? '',
     durationMin: data.durationMin,
@@ -156,15 +161,16 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const current = uid && snapshot?.uid === uid ? snapshot : null;
 
-  const createBooking = async ({ salon, service, staffId, date, time, name, phone, note, replaces }: NewBooking) => {
+  const createBooking = async ({ salon, service, addOns, staffId, date, time, name, phone, note, replaces }: NewBooking) => {
     // Fra Firebase, ikke state – kunden kan ha logget inn med SMS-koden rett før
     const current = auth.currentUser;
     if (!current) throw new Error('Du må være logget inn for å booke.');
 
     const bookingRef = doc(collection(db, 'bookings'));
-    const times = slotTimesFor(time, service.durationMin);
+    const total = withAddOns(service, addOns);
+    const times = slotTimesFor(time, total.durationMin);
     const startAt = toStartDate(date, time);
-    const endAt = new Date(startAt.getTime() + service.durationMin * 60_000);
+    const endAt = new Date(startAt.getTime() + total.durationMin * 60_000);
     const cancellableUntil = new Date(startAt.getTime() - salon.cancellationHours * 60 * 60 * 1000);
 
     // Ved «hvem som helst» prøves de ansatte i tilfeldig rekkefølge, så timene fordeles jevnt.
@@ -194,11 +200,13 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         salonId: salon.id,
         salonName: salon.name,
         serviceId: service.id,
-        serviceName: service.name,
+        serviceName: total.name,
+        // Bare når det er valgt tillegg, så vanlige bookinger virker også før de nye reglene er deployet
+        ...(addOns.length > 0 ? { addOnIds: addOns.map((addOn) => addOn.id) } : {}),
         staffId: chosen.staff.id,
         staffName: chosen.staff.name,
-        durationMin: service.durationMin,
-        priceNok: service.priceNok,
+        durationMin: total.durationMin,
+        priceNok: total.priceNok,
         date,
         time,
         startAt: Timestamp.fromDate(startAt),
