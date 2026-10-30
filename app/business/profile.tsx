@@ -34,11 +34,13 @@ export default function BusinessProfileScreen() {
     const missing =
       name.trim().length < 2
         ? 'Skriv inn navnet på bedriften.'
-        : !isHome && !address.trim()
-          ? 'Skriv inn adressen til salongen.'
-          : !area.trim()
-            ? 'Skriv inn område eller bydel.'
-            : null;
+        : !category.trim()
+          ? 'Velg eller skriv hva du tilbyr.'
+          : !isHome && !address.trim()
+            ? 'Skriv inn adressen til salongen.'
+            : !area.trim()
+              ? 'Skriv inn område eller bydel.'
+              : null;
     if (missing) {
       setError(missing);
       return;

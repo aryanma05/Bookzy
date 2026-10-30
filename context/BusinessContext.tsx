@@ -95,7 +95,7 @@ function editableData(salon: Salon, changes: SalonChanges) {
   const today = toDateKey(new Date());
   return {
     name: next.name.trim(),
-    category: next.category,
+    category: next.category.trim(),
     description: next.description.trim(),
     // Med godkjenning ligger adressen bare i private/address (se saveSalon)
     address: next.requiresApproval ? '' : next.address.trim(),
@@ -208,7 +208,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     await setDoc(doc(db, 'salons', id), {
       ownerId: user.uid,
       name: input.name.trim(),
-      category: input.category,
+      category: input.category.trim(),
       description: '',
       address: input.address.trim(),
       area: input.area.trim(),

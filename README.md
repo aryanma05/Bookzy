@@ -23,7 +23,7 @@ The app is built with Expo (SDK 57) and Firebase and runs on iOS, Android and th
 
 Bookzy is built first and foremost for home-based salons, solo technicians and small businesses, with room to grow into larger salons. Business mode lives in the same app (Profile → *Bookzy for bedrifter*) and works on the web, so the salon can use it on a PC.
 
-- Register a business in one form: name, category, home salon or salon/studio, area and contact info. The owner becomes the first person customers can book with, so a solo business doesn't need to set up staff at all
+- Register a business in one form: name, category (one of ours, or their own under *Annet*), home salon or salon/studio, area and contact info. The owner becomes the first person customers can book with, so a solo business doesn't need to set up staff at all
 - Home salons can leave the address empty; customers then only see the area
 - *Godkjenn bookinger selv*: bookings become requests the salon approves or declines (Profil og kontaktinfo). The address is then kept in `salons/{id}/private/address`, which only the owner can read, and is copied onto the booking when it is approved, so customers only see it once they're approved. Declining frees the time. Pending requests are shown at the top of the calendar. The salon gets a push notification and email for new and withdrawn requests. The customer gets an email when the request is sent (without the address), and a push notification and email (or SMS) when it's approved, with the address, or declined. The reminder is set up when the request is approved
 - The salon can write its own terms (*Vilkår*), which customers must accept before they can book

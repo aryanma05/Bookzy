@@ -43,8 +43,8 @@ export default function RegisterBusinessScreen() {
     const missing =
       name.trim().length < 2
         ? 'Skriv inn navnet på bedriften.'
-        : !category
-          ? 'Velg hva slags bedrift det er.'
+        : !category.trim()
+          ? 'Velg eller skriv hva du tilbyr.'
           : !isHome && !address.trim()
             ? 'Skriv inn adressen til salongen.'
             : !area.trim()
