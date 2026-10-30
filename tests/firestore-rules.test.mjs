@@ -191,6 +191,15 @@ describe('opprette booking', () => {
     await assertFails(book(db('bob'), 'bob', { times: ['10:30', '11:00'] }).commit());
   });
 
+  test('kan velge tilleggstjenester', async () => {
+    await assertSucceeds(book(db('alice'), 'alice', { overrides: { addOnIds: ['farge', 'french'] } }).commit());
+  });
+
+  test('tilleggene må være en liste med høyst fem', async () => {
+    await assertFails(book(db('alice'), 'alice', { overrides: { addOnIds: ['a', 'b', 'c', 'd', 'e', 'f'] } }).commit());
+    await assertFails(book(db('alice'), 'alice', { overrides: { addOnIds: 'farge' } }).commit());
+  });
+
   test('kan ikke lage booking uten luker', async () => {
     await assertFails(setDoc(doc(db('alice'), 'bookings', 'uten-luker'), bookingData('alice')));
   });
@@ -500,9 +509,13 @@ describe('redigere salongen', () => {
       updateDoc(
         doc(db(OWNER), 'salons', SALON_ID),
         salonData({
-          services: [{ id: 'klipp', name: 'Klipp', category: 'Klipp', durationMin: 45, priceNok: 500 }],
+          services: [
+            { id: 'klipp', name: 'Klipp', category: 'Klipp', durationMin: 45, priceNok: 500 },
+            { id: 'kur', name: 'Hårkur', category: 'Tillegg', durationMin: 0, priceNok: 150, addOn: true },
+          ],
           openingHours: { mon: { open: '10:00', close: '18:00' }, tue: null },
           flexibleHours: true,
+          serviceMenu: true,
           closedDates: ['2099-01-20', '2099-01-21_maria'],
         })
       )
@@ -523,6 +536,7 @@ describe('redigere salongen', () => {
     await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ locationType: 'slott' })));
     await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ openingHours: { mandag: null } })));
     await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ flexibleHours: 'ja' })));
+    await assertFails(updateDoc(doc(db(OWNER), 'salons', SALON_ID), salonData({ serviceMenu: 'ja' })));
   });
 
   test('kan ikke slette salongen', async () => {

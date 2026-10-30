@@ -80,13 +80,19 @@ export default function BookingDetailsScreen() {
   const bookAgain = () =>
     router.push({
       pathname: '/book/[salonId]',
-      params: { salonId: booking.salonId, serviceId: booking.serviceId, staffId: booking.staffId },
+      params: { salonId: booking.salonId, serviceId: booking.serviceId, staffId: booking.staffId, addOnIds: booking.addOnIds.join(',') },
     });
 
   const reschedule = () =>
     router.push({
       pathname: '/book/[salonId]',
-      params: { salonId: booking.salonId, serviceId: booking.serviceId, staffId: booking.staffId, replaces: booking.id },
+      params: {
+        salonId: booking.salonId,
+        serviceId: booking.serviceId,
+        staffId: booking.staffId,
+        replaces: booking.id,
+        addOnIds: booking.addOnIds.join(','),
+      },
     });
 
   const cancel = async () => {

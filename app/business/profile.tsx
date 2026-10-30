@@ -34,11 +34,13 @@ export default function BusinessProfileScreen() {
     const missing =
       name.trim().length < 2
         ? 'Skriv inn navnet på bedriften.'
-        : !isHome && !address.trim()
-          ? 'Skriv inn adressen til salongen.'
-          : !area.trim()
-            ? 'Skriv inn område eller bydel.'
-            : null;
+        : !category.trim()
+          ? 'Velg eller skriv hva du tilbyr.'
+          : !isHome && !address.trim()
+            ? 'Skriv inn adressen til salongen.'
+            : !area.trim()
+              ? 'Skriv inn område eller bydel.'
+              : null;
     if (missing) {
       setError(missing);
       return;
@@ -69,7 +71,8 @@ export default function BusinessProfileScreen() {
         value={description}
         onChangeText={setDescription}
         multiline
-        maxLength={1000}
+        maxLength={300}
+        hint="Vises under navnet på siden din og når du deler lenken."
       />
 
       <Text variant="heading" style={styles.heading}>Hvor</Text>

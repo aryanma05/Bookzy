@@ -13,12 +13,20 @@ const MAX_SIDE = 1600;
 /** Småbildene av tjenestene vises bare noen få cm store. */
 export const THUMBNAIL_SIDE = 400;
 
+/** Det eieren valgte i beskjæringen. Utsnittet er i piksler i det roterte bildet. */
+export type PhotoEdit = {
+  rotate: number;
+  crop: { originX: number; originY: number; width: number; height: number };
+};
+
 /** Gjør bildet mindre, laster det opp og gir adressen det vises fra. */
-export async function uploadSalonPhoto(salonId: string, asset: ImagePickerAsset, maxSide = MAX_SIDE) {
+export async function uploadSalonPhoto(salonId: string, asset: ImagePickerAsset, maxSide = MAX_SIDE, edit?: PhotoEdit | null) {
   const context = ImageManipulator.manipulate(asset.uri);
+  if (edit) context.rotate(edit.rotate).crop(edit.crop);
   // Bredde og høyde kan være 0 hvis systemet ikke vet dem. Da lagres bildet bare som JPEG.
-  if (Math.max(asset.width, asset.height) > maxSide) {
-    context.resize(asset.width >= asset.height ? { width: maxSide } : { height: maxSide });
+  const { width, height } = edit ? edit.crop : asset;
+  if (Math.max(width, height) > maxSide) {
+    context.resize(width >= height ? { width: maxSide } : { height: maxSide });
   }
   const image = await (await context.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
   const blob = await (await fetch(image.uri)).blob();

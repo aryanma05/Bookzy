@@ -24,6 +24,14 @@ function findById(list: unknown, id: unknown): Named | undefined {
   return list.find((item: Named | null) => item?.id === id && typeof item?.name === 'string');
 }
 
+/** «Vippeløft + Brynsfarge»: tjenesten og tilleggene kunden valgte, med navnene fra salongen. Tomt hvis tjenesten er borte. */
+export function serviceTitle(services: unknown, serviceId: unknown, addOnIds: unknown): string {
+  const service = findById(services, serviceId);
+  if (!service) return '';
+  const addOns = Array.isArray(addOnIds) ? addOnIds.slice(0, 5).map((id) => findById(services, id)) : [];
+  return clean([service, ...addOns].map((item) => item?.name).filter(Boolean).join(' + '), 200);
+}
+
 /**
  * Samler det varslene trenger. Navn på salong, tjeneste og ansatt hentes fra salongen,
  * ikke fra bookingen – den skrives av kunden, og reglene sjekker ikke at navnene stemmer.
@@ -36,7 +44,6 @@ export async function loadBooking(id: string, data: DocumentData, salonData?: Do
   if (!salon) return null;
 
   const startAt = data.startAt.toDate();
-  const service = findById(salon.services, data.serviceId);
   const staff = findById(salon.staff, data.staffId);
 
   return {
@@ -52,7 +59,7 @@ export async function loadBooking(id: string, data: DocumentData, salonData?: Do
       salonPhone: clean(salon.phone, 20),
       // Adressen på timen skrives av salongen når den godkjenner, og er skjult på salongen
       salonPlace: clean(data.address, 120) || clean(salon.address, 120) || clean(salon.area, 60),
-      serviceName: clean(service?.name, 80) || 'Timen',
+      serviceName: serviceTitle(salon.services, data.serviceId, data.addOnIds) || 'Timen',
       staffName: clean(staff?.name, 60),
       priceNok: typeof data.priceNok === 'number' && data.priceNok >= 0 ? data.priceNok : 0,
       durationMin: typeof data.durationMin === 'number' && data.durationMin > 0 ? Math.min(data.durationMin, 600) : 30,

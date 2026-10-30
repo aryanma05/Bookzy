@@ -47,6 +47,7 @@ export type SalonChanges = Partial<
     | 'photos'
     | 'terms'
     | 'requiresApproval'
+    | 'serviceMenu'
   >
 >;
 
@@ -95,14 +96,14 @@ function editableData(salon: Salon, changes: SalonChanges) {
   const today = toDateKey(new Date());
   return {
     name: next.name.trim(),
-    category: next.category,
+    category: next.category.trim(),
     description: next.description.trim(),
     // Med godkjenning ligger adressen bare i private/address (se saveSalon)
     address: next.requiresApproval ? '' : next.address.trim(),
     area: next.area.trim(),
     phone: (next.phone ?? '').trim(),
     locationType: next.locationType,
-    services: next.services.map(({ id, name, category, durationMin, priceNok, description, imageUrl }) => ({
+    services: next.services.map(({ id, name, category, durationMin, priceNok, description, imageUrl, addOn }) => ({
       id,
       name,
       category,
@@ -110,6 +111,7 @@ function editableData(salon: Salon, changes: SalonChanges) {
       priceNok,
       ...(description ? { description } : {}),
       ...(imageUrl ? { imageUrl } : {}),
+      ...(addOn ? { addOn } : {}),
     })),
     staff: next.staff.map(({ id, name, title }) => ({ id, name, title })),
     openingHours: next.openingHours,
@@ -122,6 +124,7 @@ function editableData(salon: Salon, changes: SalonChanges) {
     photos: next.photos,
     ...('terms' in changes || salon.terms ? { terms: next.terms.trim() } : {}),
     ...('requiresApproval' in changes || salon.requiresApproval ? { requiresApproval: next.requiresApproval } : {}),
+    ...('serviceMenu' in changes || salon.serviceMenu ? { serviceMenu: next.serviceMenu } : {}),
     updatedAt: serverTimestamp(),
   };
 }
@@ -208,7 +211,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     await setDoc(doc(db, 'salons', id), {
       ownerId: user.uid,
       name: input.name.trim(),
-      category: input.category,
+      category: input.category.trim(),
       description: '',
       address: input.address.trim(),
       area: input.area.trim(),

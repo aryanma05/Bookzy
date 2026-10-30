@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Chip } from '@/components/ui/chip';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import { TextField } from '@/components/ui/text-field';
 import { colors, radius } from '@/constants/theme';
 import { haptics } from '@/lib/haptics';
 import { CATEGORIES, LOCATION_TYPES, type LocationType } from '@/lib/salons';
@@ -17,19 +19,47 @@ export function FieldGroup({ label, hint, children }: { label: string; hint?: st
   );
 }
 
+/** Faste kategorier, eller «Annet» der bedriften skriver sin egen. */
 export function CategoryPicker({ value, onChange }: { value: string; onChange: (category: string) => void }) {
+  const [other, setOther] = useState(() => value !== '' && !CATEGORIES.some((category) => category.name === value));
+
   return (
-    <View style={styles.chips}>
-      {CATEGORIES.map((category) => (
+    <>
+      <View style={styles.chips}>
+        {CATEGORIES.map((category) => (
+          <Chip
+            key={category.name}
+            label={category.name}
+            icon={category.icon}
+            selected={!other && category.name === value}
+            onPress={() => {
+              setOther(false);
+              onChange(category.name);
+            }}
+          />
+        ))}
         <Chip
-          key={category.name}
-          label={category.name}
-          icon={category.icon}
-          selected={category.name === value}
-          onPress={() => onChange(category.name)}
+          label="Annet"
+          icon="add-outline"
+          selected={other}
+          onPress={() => {
+            if (!other) onChange('');
+            setOther(true);
+          }}
         />
-      ))}
-    </View>
+      </View>
+      {other && (
+        <TextField
+          placeholder="F.eks. Sminke"
+          value={value}
+          onChangeText={onChange}
+          maxLength={40}
+          // Bare når de nettopp trykket «Annet», ikke når profilen åpnes med en egen kategori
+          autoFocus={!value}
+          accessibilityLabel="Hva tilbyr du?"
+        />
+      )}
+    </>
   );
 }
 
