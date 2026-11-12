@@ -16,7 +16,7 @@ import { useNow } from '@/hooks/use-now';
 import { useTakenSlots } from '@/hooks/use-taken-slots';
 import { smsSignInSupported } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
-import { formatDuration, formatPrice, withAddOns } from '@/lib/salons';
+import { formatDuration, formatPrice, MAX_ADD_ONS, withAddOns } from '@/lib/salons';
 import {
   addDays,
   formatDay,
@@ -26,8 +26,10 @@ import {
   hoursForDate,
   isDayOff,
   REQUEST_LEAD_HOURS,
+  slotTimesFor,
   toDateKey,
   upcomingDates,
+  type TakenSlots,
 } from '@/lib/schedule';
 
 const DAYS_AHEAD = 28;
@@ -59,8 +61,28 @@ export default function ChooseTimeScreen() {
   const [chosenDate, setChosenDate] = useState<string | null>(null);
   const [chosenTime, setChosenTime] = useState<string | null>(null);
 
+  const addOns = salon?.services.filter((item) => item.addOn) ?? [];
+  // Tillegg salongen har slettet siden timen ble booket, faller bort
+  const chosenAddOns = addOns.filter((item) => addOnIds.includes(item.id));
+  const durationMin = service ? withAddOns(service, chosenAddOns).durationMin : 0;
+  const staffIds = staffId ? [staffId] : (salon?.staff.map((member) => member.id) ?? []);
+  const timesOn = (day: Date, takenSlots: TakenSlots) =>
+    salon
+      ? getAvailableTimes({
+          openingHours: salon.openingHours,
+          closedDates: salon.closedDates,
+          date: day,
+          durationMin,
+          staffIds,
+          taken: takenSlots,
+          now,
+          leadMin: salon.requiresApproval ? REQUEST_LEAD_HOURS * 60 : undefined,
+        })
+      : [];
+
   const dates = upcomingDates(now, DAYS_AHEAD);
-  const firstOpen = salon ? dates.find((date) => hoursForDate(salon.openingHours, date, salon.closedDates)) : undefined;
+  // Første dag det går an å booke. I dag hoppes over når det er for sent på dagen, så ingen møtes av en tom liste.
+  const firstOpen = dates.find((day) => timesOn(day, new Map()).length > 0);
   const dateKey = chosenDate ?? toDateKey(firstOpen ?? now);
   const date = fromDateKey(dateKey);
   const { taken, error } = useTakenSlots(salon?.id ?? null, dateKey);
@@ -87,24 +109,16 @@ export default function ChooseTimeScreen() {
     );
   }
 
-  const addOns = salon.services.filter((item) => item.addOn);
-  // Tillegg salongen har slettet siden timen ble booket, faller bort
-  const chosenAddOns = addOns.filter((item) => addOnIds.includes(item.id));
   const total = withAddOns(service, chosenAddOns);
-  const staffIds = staffId ? [staffId] : salon.staff.map((member) => member.id);
-  const available =
-    taken !== null
-      ? getAvailableTimes({
-          openingHours: salon.openingHours,
-          closedDates: salon.closedDates,
-          date,
-          durationMin: total.durationMin,
-          staffIds,
-          taken,
-          now,
-          leadMin: salon.requiresApproval ? REQUEST_LEAD_HOURS * 60 : undefined,
-        })
-      : [];
+  // Timen som flyttes blir ledig når den nye bookes, så den kan også flyttes til en tid som overlapper den gamle
+  const moving = replacing?.date === dateKey ? replacing : undefined;
+  const ownTimes = moving ? slotTimesFor(moving.time, moving.durationMin) : [];
+  const free =
+    taken && moving
+      ? new Map(taken).set(moving.staffId, new Set([...(taken.get(moving.staffId) ?? [])].filter((slot) => !ownTimes.includes(slot))))
+      : taken;
+  // Samme tid som før er ingen flytting
+  const available = free ? timesOn(date, free).filter((item) => item.time !== moving?.time) : [];
   const time = chosenTime && available.some((item) => item.time === chosenTime) ? chosenTime : null;
   const isClosed = !hoursForDate(salon.openingHours, date, salon.closedDates);
   const chosenStaff = staffId ? salon.staff.find((member) => member.id === staffId) : undefined;
@@ -137,6 +151,7 @@ export default function ChooseTimeScreen() {
   };
 
   const toggleAddOn = (id: string) => {
+    if (!addOnIds.includes(id) && chosenAddOns.length >= MAX_ADD_ONS) return;
     haptics.select();
     setAddOnIds(addOnIds.includes(id) ? addOnIds.filter((item) => item !== id) : [...addOnIds, id]);
   };
@@ -184,6 +199,9 @@ export default function ChooseTimeScreen() {
                 );
               })}
             </View>
+            {addOns.length > MAX_ADD_ONS && (
+              <Text variant="caption" style={styles.addOnsHint}>Du kan velge opptil {MAX_ADD_ONS} tillegg.</Text>
+            )}
           </View>
         )}
 
@@ -235,7 +253,13 @@ export default function ChooseTimeScreen() {
           ) : available.length === 0 ? (
             <EmptyState
               icon="calendar-clear-outline"
-              title={chosenStaff && chosenStaffOff ? `${chosenStaff.name.split(' ')[0]} har fri denne dagen` : 'Fullt denne dagen'}
+              title={
+                chosenStaff && chosenStaffOff
+                  ? `${chosenStaff.name.split(' ')[0]} har fri denne dagen`
+                  : dateKey === toDateKey(now)
+                    ? 'Ingen flere ledige tider i dag'
+                    : 'Fullt denne dagen'
+              }
               message={staffId ? 'Prøv en annen dag, eller velg «Hvem som helst».' : 'Prøv en annen dag.'}
               actionLabel="Se neste dag"
               onAction={goToNextDay}
@@ -283,6 +307,7 @@ const styles = StyleSheet.create({
   addOn: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
   addOnDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   addOnPrice: { alignItems: 'flex-end' },
+  addOnsHint: { paddingHorizontal: 24, marginTop: 8 },
   section: { marginTop: 26 },
   sectionTitle: { paddingHorizontal: 20, marginBottom: 14 },
   times: { paddingHorizontal: 20, gap: 16 },

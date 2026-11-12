@@ -77,6 +77,8 @@ const asAdmin = (callback) => testEnv.withSecurityRulesDisabled((context) => cal
 const slotIdFor = (staffId, time, date = DATE) => `${SALON_ID}_${staffId}_${date}_${time}`;
 
 function bookingData(uid, { staffId = 'maria', times = ['10:00', '10:30'], start = new Date('2099-01-15T10:00:00'), overrides = {} } = {}) {
+  // To luker gir 45 minutter, slik en behandling som ikke går opp i halvtimer holder av en hel time
+  const durationMin = times.length * 30 - 15;
   return {
     userId: uid,
     customerName: 'Test',
@@ -88,12 +90,12 @@ function bookingData(uid, { staffId = 'maria', times = ['10:00', '10:30'], start
     serviceName: 'Herreklipp',
     staffId,
     staffName: 'Maria',
-    durationMin: 45,
+    durationMin,
     priceNok: 450,
     date: DATE,
     time: times[0],
     startAt: Timestamp.fromDate(start),
-    endAt: Timestamp.fromDate(new Date(start.getTime() + 45 * 60_000)),
+    endAt: Timestamp.fromDate(new Date(start.getTime() + durationMin * 60_000)),
     cancellableUntil: Timestamp.fromDate(new Date(start.getTime() - 24 * HOUR)),
     slotIds: times.map((time) => slotIdFor(staffId, time)),
     status: 'confirmed',
@@ -133,14 +135,14 @@ async function completedBooking(uid, bookingId = `done-${uid}`) {
   return bookingId;
 }
 
-function review(firestore, bookingId, { rating = 5, salonRatingSum = 40 + rating, salonCount = 11, salonId = SALON_ID } = {}) {
+function review(firestore, bookingId, { rating = 5, salonRatingSum = 40 + rating, salonCount = 11, salonId = SALON_ID, serviceName = 'Herreklipp' } = {}) {
   const batch = writeBatch(firestore);
   batch.set(doc(firestore, 'reviews', bookingId), {
     salonId,
     rating,
     comment: 'Veldig bra!',
     authorName: 'Test T.',
-    serviceName: 'Herreklipp',
+    serviceName,
     createdAt: serverTimestamp(),
   });
   batch.update(doc(firestore, 'salons', SALON_ID), {
@@ -236,6 +238,19 @@ describe('opprette booking', () => {
 
   test('kan ikke booke hos en salong som ikke finnes', async () => {
     await assertFails(book(db('alice'), 'alice', { overrides: { salonId: 'finnes-ikke' } }).commit());
+  });
+
+  test('det som vises i salongens kalender, må ha riktig form', async () => {
+    const invalid = (overrides) => assertFails(book(db('alice'), 'alice', { overrides }).commit());
+    await invalid({ serviceName: { tekst: 'Herreklipp' } });
+    await invalid({ staffName: 42 });
+    await invalid({ salonName: 'a'.repeat(81) });
+    await invalid({ priceNok: -1 });
+    await invalid({ durationMin: 0 });
+    // Varigheten må stemme med både sluttiden og antall luker som holdes av
+    await invalid({ durationMin: 480 });
+    await invalid({ endAt: Timestamp.fromDate(new Date('2099-01-15T18:00:00')) });
+    await assertFails(book(db('alice'), 'alice', { times: ['25:99'] }).commit());
   });
 
   test('første luke må være starttiden', async () => {
@@ -366,6 +381,42 @@ describe('avbestille og flytte', () => {
   test('kan ikke slette luker uten å avbestille bookingen', async () => {
     await assertFails(deleteDoc(doc(db('alice'), 'slots', slotIdFor('maria', '10:00'))));
   });
+
+  test('en avbestilt time kan ikke holde av tiden igjen', async () => {
+    const firestore = db('alice');
+    await cancel(writeBatch(firestore), firestore, 'booking-alice').commit();
+    await assertFails(
+      setDoc(doc(firestore, 'slots', slotIdFor('maria', '10:00')), {
+        salonId: SALON_ID,
+        staffId: 'maria',
+        date: DATE,
+        time: '10:00',
+        bookingId: 'booking-alice',
+      })
+    );
+  });
+
+  test('kan flytte timen til en tid som overlapper den gamle', async () => {
+    const firestore = db('alice');
+    // 10:00 flyttes til 10:30: luken 10:30 går over til den nye timen, og 10:00 blir ledig
+    const batch = book(firestore, 'alice', {
+      bookingId: 'ny-booking',
+      times: ['10:30', '11:00'],
+      overrides: { replacesBookingId: 'booking-alice' },
+    });
+    cancel(batch, firestore, 'booking-alice', { times: ['10:00'] });
+    await assertSucceeds(batch.commit());
+    await assertFails(book(db('bob'), 'bob', { times: ['10:30', '11:00'] }).commit());
+    await assertSucceeds(book(db('bob'), 'bob', { times: ['10:00'] }).commit());
+  });
+
+  test('kan ikke ta over luken til en annens time', async () => {
+    await book(db('bob'), 'bob', { staffId: 'jonas' }).commit();
+    const firestore = db('bob');
+    const batch = book(firestore, 'bob', { bookingId: 'ny-bob', overrides: { replacesBookingId: 'booking-bob' } });
+    cancel(batch, firestore, 'booking-bob', { staffId: 'jonas' });
+    await assertFails(batch.commit());
+  });
 });
 
 describe('anmeldelser', () => {
@@ -405,6 +456,17 @@ describe('anmeldelser', () => {
   test('kan ikke jukse med snittet', async () => {
     const bookingId = await completedBooking('alice');
     await assertFails(review(db('alice'), bookingId, { rating: 5, salonRatingSum: 40 + 50 }));
+  });
+
+  test('tjenesten på anmeldelsen må være tekst', async () => {
+    const bookingId = await completedBooking('alice');
+    await assertFails(review(db('alice'), bookingId, { serviceName: { tekst: 'Herreklipp' } }));
+    await assertFails(review(db('alice'), bookingId, { serviceName: 'a'.repeat(501) }));
+  });
+
+  test('eieren kan ikke anmelde sin egen salong', async () => {
+    const bookingId = await completedBooking(OWNER);
+    await assertFails(review(db(OWNER), bookingId));
   });
 
   test('vurderingen må være 1–5', async () => {
@@ -689,6 +751,30 @@ describe('salongen avbestiller', () => {
 
   test('eieren kan ikke slette luker uten å avbestille', async () => {
     await assertFails(deleteDoc(doc(db(OWNER), 'slots', slotIdFor('maria', '10:00'))));
+  });
+});
+
+describe('eieren legger inn timer selv', () => {
+  const manual = { overrides: { manual: true, customerName: 'Kari på telefon', customerPhone: '' } };
+
+  test('eieren kan legge inn en time for en kunde', async () => {
+    await assertSucceeds(book(db(OWNER), OWNER, manual).commit());
+  });
+
+  test('timen er bekreftet med en gang, også når salongen godkjenner bookinger selv', async () => {
+    await asAdmin((firestore) => updateDoc(doc(firestore, 'salons', SALON_ID), { requiresApproval: true, address: '' }));
+    await assertFails(book(db(OWNER), OWNER, { overrides: { ...manual.overrides, status: 'pending' } }).commit());
+    await assertSucceeds(book(db(OWNER), OWNER, manual).commit());
+  });
+
+  test('eieren kan skrive kundens nummer selv om hun er logget inn med sitt eget', async () => {
+    const firestore = testEnv.authenticatedContext(OWNER, { phone_number: '+4791234567' }).firestore();
+    await assertSucceeds(book(firestore, OWNER, { overrides: { manual: true, customerPhone: '+4740000000' } }).commit());
+  });
+
+  test('kunder kan ikke merke timen som lagt inn av salongen', async () => {
+    await assertFails(book(db('alice'), 'alice', manual).commit());
+    await assertFails(book(db(OWNER), OWNER, { overrides: { manual: 'ja' } }).commit());
   });
 });
 

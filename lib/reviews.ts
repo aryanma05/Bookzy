@@ -32,10 +32,11 @@ export async function fetchSalonReviews(salonId: string, max = 20): Promise<Revi
     return {
       id: review.id,
       salonId: data.salonId,
-      rating: data.rating,
-      comment: data.comment ?? '',
-      authorName: data.authorName ?? 'Kunde',
-      serviceName: data.serviceName ?? '',
+      // Anmeldelser skrives av kundene, så ingenting vises uten at det har riktig form
+      rating: typeof data.rating === 'number' ? data.rating : 0,
+      comment: typeof data.comment === 'string' ? data.comment : '',
+      authorName: typeof data.authorName === 'string' && data.authorName ? data.authorName : 'Kunde',
+      serviceName: typeof data.serviceName === 'string' ? data.serviceName : '',
       createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(),
     };
   });

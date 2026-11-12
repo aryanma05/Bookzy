@@ -162,19 +162,24 @@ service cloud.firestore {
           'userId', 'customerName', 'customerPhone', 'note',
           'salonId', 'salonName', 'serviceId', 'serviceName', 'staffId', 'staffName',
           'durationMin', 'priceNok', 'date', 'time', 'startAt', 'endAt', 'cancellableUntil',
-          'slotIds', 'status', 'createdAt', 'replacesBookingId', 'addOnIds'
+          'slotIds', 'status', 'createdAt', 'replacesBookingId', 'addOnIds', 'manual'
         ])
         // Tilleggstjenestene kunden valgte. Varslene henter navnene fra salongen.
         && (!('addOnIds' in request.resource.data)
           || (request.resource.data.addOnIds is list && request.resource.data.addOnIds.size() <= 5))
         && request.resource.data.userId == request.auth.uid
+        // manual: eieren legger inn en time for en kunde som har ringt eller sendt melding
+        && (!('manual' in request.resource.data)
+          || (request.resource.data.manual == true
+            && get(salonPath(request.resource.data.salonId)).data.get('ownerId', null) == request.auth.uid))
         // Skjulte salonger tar ikke imot nye bookinger, men eieren kan prøve sin egen side
         && (get(salonPath(request.resource.data.salonId)).data.get('published', true) == true
           || get(salonPath(request.resource.data.salonId)).data.get('ownerId', null) == request.auth.uid)
         // Hos salonger som godkjenner bookinger selv, blir timen en forespørsel, og den må sendes minst 3 timer før
-        // (REQUEST_LEAD_HOURS i appen), så salongen rekker å svare
+        // (REQUEST_LEAD_HOURS i appen), så salongen rekker å svare. Timer eieren legger inn selv, er bekreftet.
         && request.resource.data.status
-          == (get(salonPath(request.resource.data.salonId)).data.get('requiresApproval', false) ? 'pending' : 'confirmed')
+          == (get(salonPath(request.resource.data.salonId)).data.get('requiresApproval', false)
+            && !request.resource.data.get('manual', false) ? 'pending' : 'confirmed')
         && (request.resource.data.status == 'confirmed'
           || request.resource.data.startAt >= request.time + duration.value(3, 'h'))
         && request.resource.data.createdAt == request.time
@@ -182,17 +187,32 @@ service cloud.firestore {
         && request.resource.data.customerPhone.size() <= 20
         // Logget inn med SMS: salongen skal få nummeret som faktisk er bekreftet
         && (request.auth.token.get('phone_number', null) == null
-          || request.resource.data.customerPhone == request.auth.token.phone_number)
+          || request.resource.data.customerPhone == request.auth.token.phone_number
+          || request.resource.data.get('manual', false))
         && request.resource.data.customerName is string
         && request.resource.data.customerName.size() <= 80
         && request.resource.data.note is string
         && request.resource.data.note.size() <= 500
+        // Alt dette vises i salongens kalender, så det må ha riktig form
+        && request.resource.data.salonName is string
+        && request.resource.data.salonName.size() <= 80
+        && request.resource.data.serviceId is string
+        && request.resource.data.serviceId.size() <= 100
+        && request.resource.data.serviceName is string
+        && request.resource.data.serviceName.size() <= 500
+        && request.resource.data.staffName is string
+        && request.resource.data.staffName.size() <= 100
+        && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
         && request.resource.data.durationMin is int
+        && request.resource.data.durationMin > 0
         && request.resource.data.priceNok is number
+        && request.resource.data.priceNok >= 0
         && request.resource.data.startAt is timestamp
         && request.resource.data.endAt is timestamp
         && request.resource.data.startAt > request.time
-        && request.resource.data.endAt > request.resource.data.startAt
+        && request.resource.data.endAt
+          == request.resource.data.startAt + duration.value(request.resource.data.durationMin, 'm')
         // Avbestillingsfristen bestemmes av salongen, ikke av appen
         && request.resource.data.cancellableUntil
           == request.resource.data.startAt - duration.value(get(salonPath(request.resource.data.salonId)).data.cancellationHours, 'h')
@@ -201,8 +221,9 @@ service cloud.firestore {
         && !((request.resource.data.date + '_' + request.resource.data.staffId)
           in get(salonPath(request.resource.data.salonId)).data.get('closedDates', []))
         && request.resource.data.slotIds is list
-        && request.resource.data.slotIds.size() > 0
         && request.resource.data.slotIds.size() <= 16
+        // Én luke per påbegynte halvtime, så timen holder av like mye tid som den tar i kalenderen
+        && request.resource.data.slotIds.size() == (request.resource.data.durationMin + 29) / 30
         // Første luke er starttiden, ellers kunne en time legges oppå en annen med en ledig luke et annet sted
         && request.resource.data.slotIds[0] == request.resource.data.salonId + '_' + request.resource.data.staffId + '_'
           + request.resource.data.date + '_' + request.resource.data.time
@@ -254,8 +275,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Én 30-minutters luke per salong/ansatt/dato/tid. Dokumentet kan bare opprettes, aldri overskrives,
-    // så to bookinger kan ikke få samme luke. Inneholder ingen persondata, så alle kan lese.
+    // Luken hører til brukerens egen time, slik den ser ut etter operasjonen. Bare timer som gjelder, holder av tid,
+    // ellers kunne en avbestilt time sperre tiden uten at salongen ser hvorfor.
+    function heldByOwnBooking(slotId, slot) {
+      let booking = getAfter(bookingPath(slot.bookingId)).data;
+      return booking.userId == request.auth.uid
+        && booking.salonId == slot.salonId
+        && booking.staffId == slot.staffId
+        && booking.date == slot.date
+        && slotId in booking.slotIds
+        && booking.status in ['confirmed', 'pending'];
+    }
+
+    // Én 30-minutters luke per salong/ansatt/dato/tid. To bookinger kan ikke få samme luke: den kan bare opprettes,
+    // og bare gå videre til kundens nye time når den gamle flyttes. Inneholder ingen persondata, så alle kan lese.
     match /slots/{slotId} {
       allow read: if true;
 
@@ -263,11 +296,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['salonId', 'staffId', 'date', 'time', 'bookingId'])
         && slotId == request.resource.data.salonId + '_' + request.resource.data.staffId + '_'
           + request.resource.data.date + '_' + request.resource.data.time
-        && getAfter(bookingPath(request.resource.data.bookingId)).data.userId == request.auth.uid
-        && getAfter(bookingPath(request.resource.data.bookingId)).data.salonId == request.resource.data.salonId
-        && getAfter(bookingPath(request.resource.data.bookingId)).data.staffId == request.resource.data.staffId
-        && getAfter(bookingPath(request.resource.data.bookingId)).data.date == request.resource.data.date
-        && slotId in getAfter(bookingPath(request.resource.data.bookingId)).data.slotIds;
+        && heldByOwnBooking(slotId, request.resource.data);
 
       // Luker frigjøres bare når kunden eller salongen avbestiller (eller avslår) bookingen i samme operasjon.
       allow delete: if signedIn()
@@ -275,7 +304,12 @@ service cloud.firestore {
           || isSalonOwner(resource.data.salonId))
         && getAfter(bookingPath(resource.data.bookingId)).data.status in ['cancelled', 'declined'];
 
-      allow update: if false;
+      // Flyttes en time til en tid som overlapper den gamle (f.eks. en halvtime senere), går luken rett over til den nye timen.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookingId'])
+        && getAfter(bookingPath(resource.data.bookingId)).data.userId == request.auth.uid
+        && getAfter(bookingPath(resource.data.bookingId)).data.status == 'cancelled'
+        && heldByOwnBooking(slotId, request.resource.data);
     }
 
     // Anmeldelser er offentlige. ID-en er bookingens ID, så hver time kan anmeldes én gang,
@@ -292,7 +326,11 @@ service cloud.firestore {
         && request.resource.data.comment.size() <= 1000
         && request.resource.data.authorName is string
         && request.resource.data.authorName.size() <= 60
+        && request.resource.data.serviceName is string
+        && request.resource.data.serviceName.size() <= 500
         && request.resource.data.createdAt == request.time
+        // Ingen kan anmelde sin egen salong
+        && getAfter(salonPath(request.resource.data.salonId)).data.get('ownerId', null) != request.auth.uid
         && get(bookingPath(bookingId)).data.userId == request.auth.uid
         && get(bookingPath(bookingId)).data.status == 'confirmed'
         && get(bookingPath(bookingId)).data.endAt < request.time

@@ -26,6 +26,7 @@ export default function BusinessLayout() {
       <Stack.Protected guard={!!user && !!salon}>
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="booking/[id]" />
+        <Stack.Screen name="new-booking" />
         <Stack.Screen name="service/[id]" />
         <Stack.Screen name="staff/index" />
         <Stack.Screen name="staff/[id]" />

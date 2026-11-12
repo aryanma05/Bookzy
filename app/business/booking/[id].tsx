@@ -64,7 +64,8 @@ export default function SalonBookingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { salon, cancelAsSalon, approveBooking, declineBooking, setNoShow } = useBusiness();
   const { booking, loading } = useSalonBooking(id);
-  const history = useCustomerHistory(salon?.id ?? null, booking?.userId || null);
+  // Timer eieren har lagt inn selv, står på eierens egen konto og sier ingenting om kunden
+  const history = useCustomerHistory(salon?.id ?? null, (!booking?.manual && booking?.userId) || null);
   const [busy, setBusy] = useState(false);
   // Avbestilling og avslag bekreftes i et skjema der salongen kan skrive hvorfor
   const [confirming, setConfirming] = useState(false);
@@ -147,7 +148,11 @@ export default function SalonBookingScreen() {
             <View style={styles.flex}>
               <Text variant="heading" numberOfLines={1}>{name}</Text>
               {booking.customerPhone ? <Text variant="body" selectable>{booking.customerPhone}</Text> : null}
-              {history && <Text variant="caption">{historyText(history, booking.id)}</Text>}
+              {booking.manual ? (
+                <Text variant="caption">Lagt inn av deg</Text>
+              ) : (
+                history && <Text variant="caption">{historyText(history, booking.id)}</Text>
+              )}
             </View>
           </View>
           {phone ? (
@@ -194,7 +199,11 @@ export default function SalonBookingScreen() {
             <TextField
               label={declining ? 'Hvorfor avslår du? (valgfritt)' : 'Hvorfor avbestiller du? (valgfritt)'}
               placeholder={declining ? 'F.eks. at du er fullbooket den dagen' : 'F.eks. at du har blitt syk'}
-              hint={`${firstName} ser meldingen, og tiden blir ledig for andre.`}
+              hint={
+                booking.manual
+                  ? `${firstName} får ikke beskjed fra Bookzy, så si fra selv. Tiden blir ledig for andre.`
+                  : `${firstName} ser meldingen, og tiden blir ledig for andre.`
+              }
               value={reason}
               onChangeText={setReason}
               multiline

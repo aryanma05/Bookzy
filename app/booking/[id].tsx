@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { colors, fonts, radius, shadows } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
 import { canCancel, isUpcoming, useBookings } from '@/context/BookingContext';
 import { useSalons } from '@/context/SalonsContext';
 import { useNow } from '@/hooks/use-now';
@@ -36,6 +37,7 @@ export default function BookingDetailsScreen() {
   const router = useRouter();
   const now = useNow();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const { bookings, loading, cancelBooking } = useBookings();
   const { getSalon } = useSalons();
   const { needsReview, reviewed } = useReviewedBookings(bookings, now);
@@ -63,7 +65,18 @@ export default function BookingDetailsScreen() {
     return (
       <View style={styles.screen}>
         <ScreenHeader title="Timen din" />
-        <EmptyState icon="calendar-outline" title="Fant ikke timen" message="Er du logget inn med riktig konto?" />
+        {user ? (
+          <EmptyState icon="calendar-outline" title="Fant ikke timen" message="Er du logget inn med riktig konto?" />
+        ) : (
+          // Lenken i SMS-en og e-posten åpnes ofte i en annen nettleser enn den kunden booket i
+          <EmptyState
+            icon="calendar-outline"
+            title="Logg inn for å se timen"
+            message="Bruk mobilnummeret eller e-posten du booket med."
+            actionLabel="Logg inn"
+            onAction={() => router.push({ pathname: '/login', params: { mode: 'phone' } })}
+          />
+        )}
       </View>
     );
   }

@@ -59,7 +59,9 @@ export default function AvailabilityScreen() {
   if (!salon) return null;
 
   const todayKey = toDateKey(now);
-  const service = salon.services.find((item) => item.id === serviceId) ?? salon.services[0];
+  // Tilleggene kan ikke bookes alene, så de har ingen ledige timer å vise
+  const services = salon.services.filter((item) => !item.addOn);
+  const service = services.find((item) => item.id === serviceId) ?? services[0];
   const theme = POSTER_THEMES.find((item) => item.key === themeKey) ?? POSTER_THEMES[0];
   const staffIds = salon.staff.map((member) => member.id);
   const active = (bookings ?? []).filter((booking) => booking.status !== 'cancelled');
@@ -157,9 +159,9 @@ export default function AvailabilityScreen() {
                 accessibilityLabel={mode === 'month' ? 'Neste måned' : 'Neste uke'}
               />
             </View>
-            {salon.services.length > 1 && (
+            {services.length > 1 && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-                {salon.services.map((item) => (
+                {services.map((item) => (
                   <Chip
                     key={item.id}
                     label={`${item.name} · ${formatDuration(item.durationMin)}`}

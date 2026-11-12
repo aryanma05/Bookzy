@@ -15,6 +15,16 @@ test('uten tillegg er timen bare tjenesten', () => {
   assert.deepEqual(withAddOns(LIFT, []), { name: 'Vippeløft', durationMin: 60, priceNok: 700 });
 });
 
+test('felt med feil form i databasen blir til trygg tekst', () => {
+  const salon = toSalon('s', {
+    services: [{ ...LIFT, category: { a: 1 }, description: 5 }],
+    staff: [{ id: 'lina', name: 'Lina', title: ['Negletekniker'] }],
+  });
+  assert.equal(salon.services[0].category, 'Behandlinger');
+  assert.equal(salon.services[0].description, undefined);
+  assert.equal(salon.staff[0].title, '');
+});
+
 test('«fra»-prisen ser bort fra tilleggene', () => {
   assert.equal(lowestPrice(toSalon('s', { services: [LIFT, TINT, FRENCH] })), 700);
   assert.equal(lowestPrice(toSalon('s', { services: [TINT] })), null);
