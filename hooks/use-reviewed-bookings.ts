@@ -1,13 +1,16 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import type { Booking } from '@/context/BookingContext';
+import { useBusiness } from '@/context/BusinessContext';
 import { fetchReviewedBookingIds } from '@/lib/reviews';
 
 /** Fullførte timer som kan anmeldes, og hvilke som allerede er anmeldt. Oppdateres når skjermen får fokus. */
 export function useReviewedBookings(bookings: Booking[], now: Date) {
   const [reviewed, setReviewed] = useState<Set<string> | null>(null);
+  const { salon } = useBusiness();
   const completedIds = bookings
-    .filter((booking) => booking.status === 'confirmed' && booking.endAt.getTime() <= now.getTime())
+    // Ingen kan anmelde sin egen salong, heller ikke etter å ha prøvd siden sin
+    .filter((booking) => booking.status === 'confirmed' && booking.endAt.getTime() <= now.getTime() && booking.salonId !== salon?.id)
     .map((booking) => booking.id);
   const key = completedIds.join(',');
 

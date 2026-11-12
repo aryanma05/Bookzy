@@ -70,6 +70,8 @@ export const onBookingCreated = onDocumentCreated({ document: 'bookings/{booking
   // Hos salonger som godkjenner bookinger selv, er en ny booking en forespørsel
   const request = data.status === 'pending';
   if (!request && data.status !== 'confirmed') return;
+  // Timer eieren har lagt inn selv, for kunder som ringte eller sendte melding. Kunden har ingen konto å varsle.
+  if (data.manual === true) return;
 
   const bookingId = event.params.bookingId;
   const kind = request ? 'request' : 'created';
@@ -162,16 +164,16 @@ export const onBookingUpdated = onDocumentUpdated({ document: 'bookings/{booking
   if ((before.status !== 'confirmed' && before.status !== 'pending') || after.status !== 'cancelled') return;
 
   await getFirestore().collection('reminders').doc(bookingId).delete();
+  if (after.manual === true) return;
   if (!(await claim(`cancelled_${bookingId}`))) return;
 
   const booking = await loadBooking(bookingId, after);
-  if (!booking) return;
   const now = new Date();
+  // Gamle timer og ubesvarte forespørsler som ryddes bort, er det ingen grunn til å si fra om
+  if (!booking || booking.startAt.getTime() <= now.getTime()) return;
   const key = `cancelled/${bookingId}`;
 
   if (after.cancelledBy === 'salon') {
-    // Salongen kan også rydde i gamle timer – da er det ingen grunn til å si fra
-    if (booking.startAt.getTime() <= now.getTime()) return;
     const bookAgainLink = appLink(`/salon/${after.salonId}`);
     await settle(bookingId, [
       sendPush(booking.userId, messages.cancelledBySalonPush(booking.info, now), {

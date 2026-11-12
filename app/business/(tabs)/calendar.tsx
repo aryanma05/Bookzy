@@ -259,6 +259,14 @@ export default function CalendarScreen() {
           })}
         </ScrollView>
       )}
+
+      <Button
+        title="Ny time"
+        icon="add"
+        size="md"
+        onPress={() => router.push({ pathname: '/business/new-booking', params: { date: dateKey } })}
+        style={styles.newBooking}
+      />
     </View>
   );
 }
@@ -333,7 +341,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.warningSoft,
   },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  agenda: { padding: 16, gap: 12, paddingBottom: 32 },
+  // Luft nederst, så knappen for ny time ikke dekker den siste raden
+  agenda: { padding: 16, gap: 12, paddingBottom: 88 },
+  newBooking: { position: 'absolute', right: 16, bottom: 16 },
   agendaDay: { borderRadius: radius.lg, backgroundColor: colors.surface, overflow: 'hidden', ...shadows.card },
   agendaHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
   agendaRow: {

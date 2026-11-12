@@ -52,6 +52,8 @@ export type Booking = {
   cancelReason: string;
   /** Adressen salongen ga da den godkjente timen. Tom hos salonger som ikke godkjenner selv. */
   address: string;
+  /** Lagt inn av salongen selv, for en kunde som ringte eller sendte melding. Da er userId eieren. */
+  manual: boolean;
   createdAt: Date | null;
 };
 
@@ -68,6 +70,8 @@ export type NewBooking = {
   note: string;
   /** Satt når en eksisterende time flyttes – den avbestilles i samme transaksjon. */
   replaces?: Booking;
+  /** Eieren legger inn timen selv. Den er bekreftet med en gang, og ingen får varsler. */
+  manual?: boolean;
 };
 
 type BookingContextType = {
@@ -84,33 +88,38 @@ export class SlotTakenError extends Error {}
 const BookingContext = createContext<BookingContextType | undefined>(undefined);
 
 const toDate = (value: unknown) => (value instanceof Timestamp ? value.toDate() : new Date(0));
+const text = (value: unknown) => (typeof value === 'string' ? value : '');
+const amount = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+const texts = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []);
 
+// Bookingen skrives av kunden og vises i salongens kalender, så felt med feil form skal aldri nå skjermen.
 export function toBooking(id: string, data: DocumentData): Booking {
   return {
     id,
-    userId: data.userId ?? '',
-    customerName: data.customerName ?? '',
-    customerPhone: data.customerPhone ?? '',
-    salonId: data.salonId,
-    salonName: data.salonName,
-    serviceId: data.serviceId ?? '',
-    serviceName: data.serviceName,
-    addOnIds: Array.isArray(data.addOnIds) ? data.addOnIds.filter((id: unknown) => typeof id === 'string') : [],
-    staffId: data.staffId ?? '',
-    staffName: data.staffName ?? '',
-    durationMin: data.durationMin,
-    priceNok: data.priceNok,
-    date: data.date,
-    time: data.time,
-    note: data.note ?? '',
+    userId: text(data.userId),
+    customerName: text(data.customerName),
+    customerPhone: text(data.customerPhone),
+    salonId: text(data.salonId),
+    salonName: text(data.salonName),
+    serviceId: text(data.serviceId),
+    serviceName: text(data.serviceName),
+    addOnIds: texts(data.addOnIds),
+    staffId: text(data.staffId),
+    staffName: text(data.staffName),
+    durationMin: amount(data.durationMin),
+    priceNok: amount(data.priceNok),
+    date: text(data.date),
+    time: /^\d{2}:\d{2}$/.test(data.time) ? data.time : '00:00',
+    note: text(data.note),
     startAt: toDate(data.startAt),
     endAt: toDate(data.endAt),
     cancellableUntil: data.cancellableUntil ? toDate(data.cancellableUntil) : toDate(data.startAt),
-    slotIds: data.slotIds ?? [],
+    slotIds: texts(data.slotIds),
     status: data.status,
     cancelledBy: data.cancelledBy === 'salon' ? 'salon' : null,
-    cancelReason: typeof data.cancelReason === 'string' ? data.cancelReason : '',
-    address: typeof data.address === 'string' ? data.address : '',
+    cancelReason: text(data.cancelReason),
+    address: text(data.address),
+    manual: data.manual === true,
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : null,
   };
 }
@@ -149,6 +158,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       (result) => {
         const bookings = result.docs
           .map((booking) => toBooking(booking.id, booking.data()))
+          // Timer eieren har lagt inn for kundene sine, hører til i salongens kalender, ikke blant hennes egne
+          .filter((booking) => !booking.manual)
           .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
         setSnapshot({ uid, bookings, error: null });
       },
@@ -161,7 +172,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const current = uid && snapshot?.uid === uid ? snapshot : null;
 
-  const createBooking = async ({ salon, service, addOns, staffId, date, time, name, phone, note, replaces }: NewBooking) => {
+  const createBooking = async ({ salon, service, addOns, staffId, date, time, name, phone, note, replaces, manual }: NewBooking) => {
     // Fra Firebase, ikke state – kunden kan ha logget inn med SMS-koden rett før
     const current = auth.currentUser;
     if (!current) throw new Error('Du må være logget inn for å booke.');
@@ -185,7 +196,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       for (const staff of candidates) {
         const refs = times.map((slotTime) => doc(db, 'slots', slotId(salon.id, staff.id, date, slotTime)));
         const existing = await Promise.all(refs.map((ref) => transaction.get(ref)));
-        if (existing.every((slot) => !slot.exists())) {
+        // Lukene til timen som flyttes blir ledige i samme operasjon, så den nye tiden kan overlappe den gamle
+        if (existing.every((slot) => !slot.exists() || (replaces && slot.get('bookingId') === replaces.id))) {
           chosen = { staff, refs };
           break;
         }
@@ -213,20 +225,23 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         endAt: Timestamp.fromDate(endAt),
         cancellableUntil: Timestamp.fromDate(cancellableUntil),
         slotIds: chosen.refs.map((ref) => ref.id),
-        status: salon.requiresApproval ? 'pending' : 'confirmed',
+        status: salon.requiresApproval && !manual ? 'pending' : 'confirmed',
+        ...(manual ? { manual: true } : {}),
         createdAt: serverTimestamp(),
         // Så varslene kan si «flyttet» i stedet for én avbestilling og én ny booking
         ...(replaces ? { replacesBookingId: replaces.id } : {}),
       });
 
       const staff = chosen.staff;
+      const held = new Set(chosen.refs.map((ref) => ref.id));
       chosen.refs.forEach((ref, index) => {
         transaction.set(ref, { salonId: salon.id, staffId: staff.id, date, time: times[index], bookingId: bookingRef.id });
       });
 
       if (replaces) {
         transaction.update(doc(db, 'bookings', replaces.id), { status: 'cancelled', cancelledAt: serverTimestamp() });
-        replaces.slotIds.forEach((id) => transaction.delete(doc(db, 'slots', id)));
+        // Lukene den nye timen tok over, er allerede skrevet på nytt og skal ikke slettes
+        replaces.slotIds.filter((id) => !held.has(id)).forEach((id) => transaction.delete(doc(db, 'slots', id)));
       }
     });
 

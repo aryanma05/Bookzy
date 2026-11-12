@@ -135,12 +135,14 @@ export function toSalon(id: string, data: DocumentData): Salon {
     services: Array.isArray(data.services)
       ? data.services.filter(isService).map((service: Service) => ({
           ...service,
-          category: service.category ?? 'Behandlinger',
+          // Reglene sjekker ikke hva som står i hver tjeneste, så alt som vises må bli tekst her
+          category: typeof service.category === 'string' ? service.category : 'Behandlinger',
+          description: typeof service.description === 'string' ? service.description : undefined,
           imageUrl: typeof service.imageUrl === 'string' ? service.imageUrl : undefined,
           addOn: service.addOn === true ? true : undefined,
         }))
       : [],
-    staff: staff.map((member) => ({ ...member, title: member.title ?? '' })),
+    staff: staff.map((member) => ({ ...member, title: typeof member.title === 'string' ? member.title : '' })),
     openingHours: data.openingHours ?? {},
     flexibleHours: data.flexibleHours === true,
     closedDates: Array.isArray(data.closedDates) ? data.closedDates.filter((key: unknown) => typeof key === 'string') : [],
@@ -185,6 +187,9 @@ export function groupServices(services: Service[]): { category: string; services
   }
   return [...groups].map(([category, list]) => ({ category, services: list }));
 }
+
+/** Høyst så mange tillegg på én time. Må stemme med addOnIds i firestore.rules. */
+export const MAX_ADD_ONS = 5;
 
 /** Hele timen når kunden har lagt til tilleggstjenester: navnene etter hverandre, og tid og pris lagt sammen. */
 export function withAddOns(service: Service, addOns: Service[]) {

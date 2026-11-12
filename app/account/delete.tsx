@@ -8,7 +8,7 @@ import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { colors, radius } from '@/constants/theme';
 import { authErrorMessage, useAuth } from '@/context/AuthContext';
-import { canCancel, useBookings } from '@/context/BookingContext';
+import { canCancel, isUpcoming, useBookings } from '@/context/BookingContext';
 import { useBusiness } from '@/context/BusinessContext';
 import { useNow } from '@/hooks/use-now';
 import { fetchUpcomingBookings } from '@/hooks/use-salon-bookings';
@@ -65,7 +65,8 @@ export default function DeleteAccountScreen() {
       // Uten eier er det ingen som ser bookingene, så siden skjules.
       // shortcut: bildene i Storage (salons/{id}/) blir liggende, rydd dem med en Cloud Function hvis det blir mange.
       if (salon?.published) await saveSalon({ published: false });
-      for (const booking of bookings.filter((item) => canCancel(item, now))) {
+      // Bare kommende timer. Gamle forespørsler som aldri ble besvart, er det ingen grunn til å varsle salongen om.
+      for (const booking of bookings.filter((item) => isUpcoming(item, now) && canCancel(item, now))) {
         await cancelBooking(booking);
       }
       await deleteAccount();
